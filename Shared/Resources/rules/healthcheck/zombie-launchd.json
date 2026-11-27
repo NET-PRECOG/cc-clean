@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "computedRules": [
+    {
+      "id": "healthcheck.zombie-launchd",
+      "module": "H5",
+      "scope": "healthCheck",
+      "title": "僵尸启动项",
+      "explain": "launchd 中登记但目标可执行文件已不存在（program 缺失）或上次退出码非 0 的启动项，建议禁用或删除 plist",
+      "thresholds": {
+        "programMissing": true,
+        "lastExitCodeNonZero": true
+      },
+      "consumer": ["C10", "H5", "A6"],
+      "note": "计算型规则：不匹配文件路径，由 LaunchdParser 解析结果驱动（基线 9.6 注）"
+    }
+  ]
+}

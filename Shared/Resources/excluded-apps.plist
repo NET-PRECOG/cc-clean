@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>schemaVersion</key>
+	<integer>1</integer>
+	<key>description</key>
+	<string>版本检测排除表（B1）：命中 bundleId 直接返回 unknown，UI 显示「未知来源」不定性表述（基线 7.2 边界表）。真实名单自 S5 起按实测补充。</string>
+	<key>bundleIds</key>
+	<array>
+		<string>com.example.unparseable-updater</string>
+	</array>
+	<key>notes</key>
+	<string>排除理由字段用于审计展示：reason 不得为空</string>
+	<key>entries</key>
+	<array>
+		<dict>
+			<key>bundleId</key>
+			<string>com.example.unparseable-updater</string>
+			<key>reason</key>
+			<string>自建 appcast 版本号无法解析，误报高（示例占位条目）</string>
+		</dict>
+	</array>
+</dict>
+</plist>

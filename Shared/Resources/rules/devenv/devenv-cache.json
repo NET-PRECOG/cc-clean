@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "devenv.xcode.deriveddata",
+      "module": "M5",
+      "scope": "devenv",
+      "title": "Xcode DerivedData",
+      "explain": "构建中间产物与索引，可完全重建；清理后首次构建变慢属正常现象",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Developer/Xcode/DerivedData"],
+        "maxDepth": 2
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "devenv.xcode.archives",
+      "module": "M5",
+      "scope": "devenv",
+      "title": "Xcode 归档",
+      "explain": "30 天前的 App 归档（含 dSYM 调试符号）；上传 App Store 后一般不再需要，删除前请确认",
+      "risk": "medium",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Developer/Xcode/Archives"],
+        "maxDepth": 3,
+        "olderThanDays": 30
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "devenv.xcode.devicesupport",
+      "module": "M5",
+      "scope": "devenv",
+      "title": "iOS 设备支持文件",
+      "explain": "旧版本 iOS 的调试符号支持文件，连接对应版本设备时会重新生成",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Developer/Xcode/iOS DeviceSupport"],
+        "maxDepth": 2
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "devenv.simulator.cache",
+      "module": "M5",
+      "scope": "devenv",
+      "title": "模拟器缓存",
+      "explain": "iOS 模拟器运行缓存，可重建；不影响已安装的模拟器镜像",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Developer/CoreSimulator/Caches"],
+        "maxDepth": 2
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "devenv.gradle.cache",
+      "module": "M2",
+      "scope": "devenv",
+      "title": "Gradle 缓存",
+      "explain": "Gradle 依赖缓存与 wrapper 发行版，下次构建会重新下载",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/.gradle/caches", "~/.gradle/wrapper/dists"],
+        "maxDepth": 2
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "devenv.maven.repo",
+      "module": "M2",
+      "scope": "devenv",
+      "title": "Maven 本地仓库",
+      "explain": "90 天未访问的 Maven 依赖构件，下次构建会重新下载；近期活跃项目的依赖默认不动",
+      "risk": "medium",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/.m2/repository"],
+        "maxDepth": 4,
+        "olderThanDays": 90
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "devenv.npm.cache",
+      "module": "M2",
+      "scope": "devenv",
+      "title": "npm 缓存",
+      "explain": "npm 下载缓存（_cacache），下次安装会重新下载",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/.npm/_cacache"],
+        "maxDepth": 3
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "devenv.pnpm.store",
+      "module": "M2",
+      "scope": "devenv",
+      "title": "pnpm 仓库",
+      "explain": "pnpm 全局内容寻址仓库；彻底清理建议配合 pnpm store prune 使用",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/pnpm/store"],
+        "maxDepth": 3
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "devenv.uv-conda-cache",
+      "module": "M2",
+      "scope": "devenv",
+      "title": "uv / conda 包缓存",
+      "explain": "uv 下载缓存与 conda 包缓存目录，下次安装会重新下载",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/.cache/uv", "~/miniconda3/pkgs", "~/anaconda3/pkgs"],
+        "maxDepth": 2
+      },
+      "schemaVersion": 1
+    }
+  ]
+}

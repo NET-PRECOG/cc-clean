@@ -1,0 +1,36 @@
+# MacPilot SwiftLint 配置（基线 13.6 静态检查）
+# 语义红线（禁 sudo / 禁拼字符串 Process / 禁 tccutil reset All）由 scripts/check-redlines.sh 承担。
+
+included:
+  - Packages
+  - Targets
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - closure_spacing
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - private_action
+  - switch_case_on_newline
+
+line_length:
+  warning: 120
+  error: 160
+
+identifier_name:
+  min_length: 2
+  allowed_symbols: ["_"]
+
+type_body_length:
+  warning: 300
+
+function_body_length:
+  warning: 60
+
+cyclomatic_complexity:
+  warning: 12
+
+# SwiftUI 与测试文件中的长类型名/大写枚举常见，放宽
+large_tuple:
+  warning: 4

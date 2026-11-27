@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "description": "残留候选目录模板库（C1/C2 复用）。占位符：{{bundleId}} {{displayName}} {{bundleName}} {{executableName}}；双向追踪与内容校验在 S7 实现（基线 7.3）",
+  "templates": [
+    { "id": "l2.app-support",        "path": "~/Library/Application Support/{{displayName}}",       "layer": "L2", "risk": "medium", "confidence": "probable" },
+    { "id": "l2.app-support-bundle", "path": "~/Library/Application Support/{{bundleId}}",          "layer": "L2", "risk": "medium", "confidence": "probable" },
+    { "id": "l2.caches",             "path": "~/Library/Caches/{{bundleId}}",                       "layer": "L2", "risk": "low",    "confidence": "probable" },
+    { "id": "l2.caches-name",        "path": "~/Library/Caches/{{bundleName}}",                     "layer": "L2", "risk": "low",    "confidence": "possible" },
+    { "id": "l2.preferences",        "path": "~/Library/Preferences/{{bundleId}}.plist",            "layer": "L2", "risk": "medium", "confidence": "probable" },
+    { "id": "l2.containers",         "path": "~/Library/Containers/{{bundleId}}",                   "layer": "L2", "risk": "medium", "confidence": "probable" },
+    { "id": "l2.group-containers",   "path": "~/Library/Group Containers/{{teamId}}.{{bundleId}}",  "layer": "L2", "risk": "high",   "confidence": "probable" },
+    { "id": "l2.logs",               "path": "~/Library/Logs/{{displayName}}",                      "layer": "L2", "risk": "low",    "confidence": "possible" },
+    { "id": "l2.saved-state",        "path": "~/Library/Saved Application State/{{bundleId}}.savedState", "layer": "L2", "risk": "low",  "confidence": "probable" },
+    { "id": "l2.webkit",             "path": "~/Library/WebKit/{{bundleId}}",                       "layer": "L2", "risk": "low",    "confidence": "probable" },
+    { "id": "l2.http-storages",      "path": "~/Library/HTTPStorages/{{bundleId}}",                 "layer": "L2", "risk": "low",    "confidence": "probable" },
+    { "id": "l2.cookies",            "path": "~/Library/Cookies/{{bundleId}}.binarycookies",        "layer": "L2", "risk": "medium", "confidence": "probable" },
+    { "id": "l2.app-scripts",        "path": "~/Library/Application Scripts/{{bundleId}}",          "layer": "L2", "risk": "low",    "confidence": "probable" },
+    { "id": "l2.launchagents-user",  "path": "~/Library/LaunchAgents/{{bundleId}}*.plist",          "layer": "L4", "risk": "medium", "confidence": "probable" },
+    { "id": "l2.config",             "path": "~/.config/{{executableName}}",                        "layer": "L2", "risk": "medium", "confidence": "possible" },
+    { "id": "l2.dotfile",            "path": "~/.{{executableName}}",                               "layer": "L2", "risk": "medium", "confidence": "possible" },
+    { "id": "l3.launchdaemons",      "path": "/Library/LaunchDaemons/{{bundleId}}*.plist",          "layer": "L3", "risk": "high",   "confidence": "probable", "requiresRoot": true },
+    { "id": "l3.launchagents",       "path": "/Library/LaunchAgents/{{bundleId}}*.plist",           "layer": "L3", "risk": "high",   "confidence": "probable", "requiresRoot": true },
+    { "id": "l3.privileged-helper",  "path": "/Library/PrivilegedHelperTools/{{executableName}}",   "layer": "L3", "risk": "high",   "confidence": "probable", "requiresRoot": true },
+    { "id": "l3.app-support",        "path": "/Library/Application Support/{{displayName}}",        "layer": "L3", "risk": "high",   "confidence": "probable", "requiresRoot": true },
+    { "id": "l3.preferences",        "path": "/Library/Preferences/{{bundleId}}.plist",             "layer": "L3", "risk": "high",   "confidence": "probable", "requiresRoot": true }
+  ]
+}

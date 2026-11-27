@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "cleanup.mail.attachments",
+      "module": "G2",
+      "scope": "cleanup",
+      "title": "邮件附件",
+      "explain": "邮件下载的附件副本，删除后需从邮件服务器重新下载；原始邮件不受影响",
+      "risk": "high",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads"],
+        "maxDepth": 3
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.ios.backup",
+      "module": "G2",
+      "scope": "cleanup",
+      "title": "iOS 设备备份",
+      "explain": "iPhone/iPad 的本地备份，删除后不可恢复，需重新完整备份；删除前请确认已有云端备份",
+      "risk": "high",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Application Support/MobileSync/Backup"],
+        "maxDepth": 2
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.photos.cache",
+      "module": "G2",
+      "scope": "cleanup",
+      "title": "照片编辑缓存",
+      "explain": "照片应用的外部编辑会话缓存，清理后不影响图库与编辑结果",
+      "risk": "medium",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Pictures/Photos Library.photoslibrary/private/com.apple.Photos/ExternalEditSessions"],
+        "maxDepth": 3
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.installer.dmg",
+      "module": "F6",
+      "scope": "cleanup",
+      "title": "安装包归类",
+      "explain": "下载与桌面上 30 天前的 .dmg/.pkg 安装包；应用已安装完成后通常不再需要，删除前请确认",
+      "risk": "low",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Downloads", "~/Desktop"],
+        "maxDepth": 2,
+        "extensions": ["dmg", "pkg"],
+        "olderThanDays": 30
+      },
+      "schemaVersion": 1
+    }
+  ]
+}

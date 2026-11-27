@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "description": "国产软件更新源（B2，基线 7.2 关键算法 5）：type=webPage 用 versionRegex 从页面抓取；type=json 用 jsonPath 取值。单源失败只影响该应用，源文件损坏降级为「未知」不崩溃。URL 与 regex 自 S5 POC 实测后固化，当前为骨架占位。",
+  "feeds": [
+    {
+      "bundleId": "com.tencent.xinWeChat",
+      "name": "微信",
+      "type": "webPage",
+      "url": "https://mac.weixin.qq.com/",
+      "versionRegex": "([0-9]+\\.[0-9]+\\.[0-9]+)",
+      "downloadPage": "https://mac.weixin.qq.com/"
+    },
+    {
+      "bundleId": "com.tencent.qq",
+      "name": "QQ",
+      "type": "webPage",
+      "url": "https://im.qq.com/macqq/",
+      "versionRegex": "([0-9]+\\.[0-9]+\\.[0-9]+)",
+      "downloadPage": "https://im.qq.com/macqq/"
+    },
+    {
+      "bundleId": "com.tencent.WeWorkMac",
+      "name": "企业微信",
+      "type": "webPage",
+      "url": "https://work.weixin.qq.com/",
+      "versionRegex": "([0-9]+\\.[0-9]+\\.[0-9]+)",
+      "downloadPage": "https://work.weixin.qq.com/#indexDownload"
+    },
+    {
+      "bundleId": "com.alibaba.DingTalkMac",
+      "name": "钉钉",
+      "type": "webPage",
+      "url": "https://page.dingtalk.com/wow/dingtalk/act/download",
+      "versionRegex": "([0-9]+\\.[0-9]+\\.[0-9]+)",
+      "downloadPage": "https://www.dingtalk.com/"
+    },
+    {
+      "bundleId": "com.quark.browser",
+      "name": "夸克",
+      "type": "webPage",
+      "url": "https://www.quark.cn/",
+      "versionRegex": "([0-9]+\\.[0-9]+\\.[0-9]+)",
+      "downloadPage": "https://www.quark.cn/"
+    }
+  ]
+}

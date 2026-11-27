@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "cleanup.system.user-cache",
+      "module": "G1",
+      "scope": "cleanup",
+      "title": "用户级缓存",
+      "explain": "应用缓存目录内容可由应用按需重建，清理后首次启动可能稍慢但不丢数据",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Caches"],
+        "maxDepth": 1,
+        "excludePatterns": ["com.apple.CloudDocs", "CloudKit", "familycirclesupport", "com.apple.helpd"]
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.system.user-logs",
+      "module": "G1",
+      "scope": "cleanup",
+      "title": "应用日志",
+      "explain": "7 天前的应用日志文件，仅用于排障，清理不影响任何功能",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Logs"],
+        "maxDepth": 4,
+        "olderThanDays": 7
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.system.crash-reports",
+      "module": "G1",
+      "scope": "cleanup",
+      "title": "崩溃报告",
+      "explain": "系统与应用崩溃诊断报告（.ips/.crash），已在系统「隐私与安全性-分析与改进」留存副本",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Logs/DiagnosticReports"],
+        "maxDepth": 2
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.system.tmp",
+      "module": "G1",
+      "scope": "cleanup",
+      "title": "系统临时目录",
+      "explain": "3 天前的系统临时文件（/private/var/folders/…/T），由系统按需重建；需要辅助程序",
+      "risk": "medium",
+      "defaultSelected": false,
+      "requiresRoot": true,
+      "action": { "kind": "removeSystem" },
+      "match": {
+        "roots": ["/private/var/folders"],
+        "maxDepth": 4,
+        "namePatterns": ["T"],
+        "olderThanDays": 3
+      },
+      "schemaVersion": 1
+    }
+  ]
+}

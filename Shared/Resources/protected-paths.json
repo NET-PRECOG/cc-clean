@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "description": "硬保护路径名单：RuleEngine 与 OperationJournal 双重加载，命中即拒绝（基线 7.3 要点 6 / 10.4 硬拦截清单 2）",
+  "pathPrefixes": [
+    "/System",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/private",
+    "/Library/Extensions",
+    "/System/Library"
+  ],
+  "exactPaths": [
+    "~/Library/Application Support/Apple",
+    "~/Library/Keychains"
+  ],
+  "groupContainerPrefixes": [
+    "~/Library/Group Containers/com.apple."
+  ],
+  "bundleIdPrefixes": [
+    "com.apple.",
+    "system."
+  ],
+  "readOnlyProbePathsAllowed": {
+    "description": "只读侦察例外：scope=healthCheck 的规则可探测，但任何删除动作仍被拦截",
+    "pathPrefixes": [
+      "/System/Library/LaunchDaemons",
+      "/Library/LaunchDaemons"
+    ]
+  }
+}

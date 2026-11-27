@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "security.sensitive.private-key",
+      "module": "I7",
+      "scope": "security",
+      "title": "私钥文件",
+      "explain": "检测到私钥文件（id_rsa/*.pem/*.p12/id_ed25519 或含 PRIVATE KEY 内容）；仅报告路径不展示内容，绝不自动清理",
+      "risk": "high",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "report" },
+      "match": {
+        "roots": ["~"],
+        "maxDepth": 5,
+        "namePatterns": ["id_rsa", "id_ed25519", "*.pem", "*.p12"],
+        "excludePatterns": ["Library", ".Trash"]
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "security.sensitive.env",
+      "module": "I7",
+      "scope": "security",
+      "title": ".env 密钥文件",
+      "explain": "检测到 .env 环境变量文件且疑似含密钥（AKIA/sk-/SECRET 前缀）；仅报告路径不展示内容，误报可加入忽略名单",
+      "risk": "medium",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "report" },
+      "match": {
+        "roots": ["~"],
+        "maxDepth": 5,
+        "namePatterns": [".env", ".env.*"],
+        "contentContains": ["AKIA", "sk-", "SECRET"],
+        "excludePatterns": ["Library", ".Trash", "node_modules"]
+      },
+      "schemaVersion": 1
+    }
+  ]
+}

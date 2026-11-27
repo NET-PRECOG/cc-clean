@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "cleanup.im.wechat-cache",
+      "module": "G5",
+      "scope": "cleanup",
+      "title": "微信缓存",
+      "explain": "微信图片视频缓存与临时文件；绝不触碰聊天记录数据库（*.db/*.sqlite 显式排除并有单测覆盖）",
+      "risk": "medium",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Containers/com.tencent.xinWeChat"],
+        "maxDepth": 8,
+        "namePatterns": ["Caches", "MessageTemp"],
+        "excludePatterns": ["*.db", "*.sqlite", "MM.sqlite", "*.db-shm", "*.db-wal"]
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.im.qq-cache",
+      "module": "G5",
+      "scope": "cleanup",
+      "title": "QQ 缓存",
+      "explain": "QQ 的 Cache 目录内容；绝不触碰聊天记录数据库（*.db 显式排除并有单测覆盖）",
+      "risk": "medium",
+      "defaultSelected": false,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Application Support/QQ", "~/Library/Caches/com.tencent.qq"],
+        "maxDepth": 6,
+        "namePatterns": ["Cache"],
+        "excludePatterns": ["*.db", "*.sqlite"]
+      },
+      "schemaVersion": 1
+    }
+  ]
+}

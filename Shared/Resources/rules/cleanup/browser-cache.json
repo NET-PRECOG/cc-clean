@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "cleanup.browser.safari-cache",
+      "module": "G3",
+      "scope": "cleanup",
+      "title": "Safari 缓存",
+      "explain": "Safari 页面缓存与网站数据缓存，清理后首次打开网页稍慢，不影响书签与登录状态",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Caches/com.apple.Safari", "~/Library/Containers/com.apple.Safari/Data/Library/Caches"],
+        "maxDepth": 3
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.browser.chrome-cache",
+      "module": "G3",
+      "scope": "cleanup",
+      "title": "Chrome 缓存",
+      "explain": "Chrome 的 Cache/Code Cache/GPUCache，清理后网页图片视频首次加载稍慢；不触碰登录数据",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Caches/Google/Chrome"],
+        "maxDepth": 4,
+        "namePatterns": ["Cache", "Code Cache", "GPUCache"],
+        "excludePatterns": ["Login Data", "Cookies"]
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.browser.edge-cache",
+      "module": "G3",
+      "scope": "cleanup",
+      "title": "Edge 缓存",
+      "explain": "Edge 的 Cache/Code Cache，清理后网页首次加载稍慢；不触碰登录数据",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Library/Caches/Microsoft Edge"],
+        "maxDepth": 4,
+        "namePatterns": ["Cache", "Code Cache", "GPUCache"],
+        "excludePatterns": ["Login Data", "Cookies"]
+      },
+      "schemaVersion": 1
+    }
+  ]
+}
