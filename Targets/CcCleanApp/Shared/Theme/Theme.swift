@@ -41,6 +41,8 @@ extension CCleanTheme.Accent {
     static let packages   = Self(top: Color(hex: "818CF8"), bottom: Color(hex: "3730A3"))  // 多包·靛
     static let fileTree   = Self(top: Color(hex: "34D399"), bottom: Color(hex: "065F46"))  // 文件树·青绿
     static let inventory  = Self(top: Color(hex: "64748B"), bottom: Color(hex: "1E293B"))  // 清单·石板灰蓝
+    static let largeFile  = Self(top: Color(hex: "FBBF24"), bottom: Color(hex: "B45309"))  // 大文件·琥珀
+    static let duplicate  = Self(top: Color(hex: "2DD4BF"), bottom: Color(hex: "0F766E"))  // 重复文件·青绿
 }
 
 /// Color hex 初始化（设计规格色值）。

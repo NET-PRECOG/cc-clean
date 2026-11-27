@@ -2,27 +2,19 @@ import SwiftUI
 import CcCleanCore
 import CcCleanFS
 
-/// 空间分析 ViewModel（F1 Treemap/F2 大文件/F3 重复文件，基线 11.3 ③）。
+/// 磁盘空间 ViewModel（F1 Treemap 空间构成；大文件/重复文件已拆分为独立功能页）。
 @Observable
 @MainActor
 final class SpaceViewModel {
 
     private var index: FSIndex?
-    private let largeFileScanner = LargeFileScanner()
-    private let duplicateDetector = DuplicateFileDetector(
-        logger: Logger(category: .scan, buffer: LogBuffer(capacity: 10)))
 
     private(set) var isIndexing = false
     private(set) var indexingProgress: (scanned: Int, path: String)?
-    private(set) var largeFiles: [LargeFileEntry] = []
-    private(set) var categorySummary: [(category: LargeFileCategory, bytes: Int64, count: Int)] = []
-    private(set) var duplicateGroups: [DuplicateGroup] = []
     /// F1 Treemap 顶层节点（aggregate depth=1 降序前 12 + 其他合计）
     private(set) var treemapNodes: [(name: String, bytes: Int64)] = []
     private(set) var totalUsedBytes: Int64 = 0
     private(set) var lastScanAt: Date?
-
-    var searchText = ""
 
     /// 索引根（用户主目录；全盘扫描需全盘访问权限，基线 6.4）
     private var scanRoot: String { NSHomeDirectory() }
@@ -64,29 +56,9 @@ final class SpaceViewModel {
             treemapNodes = sorted
         }
 
-        // F2 大文件
-        largeFiles = await largeFileScanner.scan(index: index, roots: [scanRoot])
-        categorySummary = LargeFileScanner.summarize(largeFiles)
-
-        // F3 重复文件（候选：缓存与下载目录的文件，控制规模）
-        let candidateQuery = FSQuery(roots: [
-            scanRoot + "/Downloads",
-            scanRoot + "/Library/Caches",
-        ])
-        let candidates = await index.query(candidateQuery)
-            .filter { !$0.isDirectory && $0.allocatedSize > 1024 * 1024 }
-            .map(\.path)
-        duplicateGroups = await duplicateDetector.detect(candidates: candidates)
-
         lastScanAt = Date()
         _ = stats
         indexingProgress = nil
-    }
-
-    /// 大文件按分类过滤 + 搜索。
-    var filteredLargeFiles: [LargeFileEntry] {
-        guard !searchText.isEmpty else { return largeFiles }
-        return largeFiles.filter { $0.path.lowercased().contains(searchText.lowercased()) }
     }
 }
 
@@ -140,22 +112,13 @@ enum TreemapLayout {
     }
 }
 
-/// 磁盘空间页（基线 11.3 ③：Treemap + 大文件 + 重复文件）。
+/// 磁盘空间页（空间构成 Treemap；大文件/重复文件见 LargeFilesView / DuplicateFilesView）。
 struct SpaceView: View {
     @State private var model = SpaceViewModel()
-    @State private var selectedTab = 0
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            Picker("", selection: $selectedTab) {
-                Text("空间构成").tag(0)
-                Text("大文件").tag(1)
-                Text("重复文件").tag(2)
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 12)
-
             if model.isIndexing {
                 LoadingOverlay(
                     isLoading: true,
@@ -166,11 +129,7 @@ struct SpaceView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                switch selectedTab {
-                case 0: treemapTab
-                case 1: largeFilesTab
-                default: duplicatesTab
-                }
+                treemapTab
             }
         }
         .navigationTitle("磁盘空间")
@@ -235,67 +194,5 @@ struct SpaceView: View {
             }
             .padding(12)
         }
-    }
-
-    // MARK: - F2 大文件
-
-    private var largeFilesTab: some View {
-        VStack(spacing: 0) {
-            if !model.categorySummary.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(model.categorySummary, id: \.category) { item in
-                            Text("\(item.category.rawValue) × \(item.count)（\(ByteCountFormatter.string(fromByteCount: item.bytes, countStyle: .file))）")
-                                .font(.caption).padding(6)
-                                .background(.blue.opacity(0.1), in: Capsule())
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                }
-                .padding(.vertical, 6)
-            }
-            List(model.filteredLargeFiles) { entry in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.path).font(.system(.caption, design: .monospaced)).lineLimit(1)
-                    HStack {
-                        Text(entry.category.rawValue).font(.caption2)
-                            .padding(2).background(.blue.opacity(0.1), in: Capsule())
-                        Spacer()
-                        Text(entry.modifiedAt.formatted(date: .abbreviated, time: .omitted))
-                            .font(.caption2).foregroundStyle(.secondary)
-                        Text(ByteCountFormatter.string(fromByteCount: entry.bytes, countStyle: .file))
-                            .font(.caption).monospacedDigit()
-                    }
-                }
-                .padding(.vertical, 2)
-            }
-            .listStyle(.inset)
-            .searchable(text: $model.searchText, prompt: "搜索路径")
-        }
-    }
-
-    // MARK: - F3 重复文件
-
-    private var duplicatesTab: some View {
-        List {
-            if model.duplicateGroups.isEmpty {
-                Text("未发现重复文件").foregroundStyle(.secondary)
-            }
-            ForEach(model.duplicateGroups, id: \.keepPath) { group in
-                Section("每组 \(group.paths.count) 份 × \(ByteCountFormatter.string(fromByteCount: group.bytesPerFile, countStyle: .file))\(group.hasHardlinks ? "（含硬链接）" : "")") {
-                    ForEach(group.paths, id: \.self) { path in
-                        HStack {
-                            Image(systemName: path == group.keepPath ? "checkmark.circle" : "circle")
-                                .foregroundStyle(path == group.keepPath ? .green : .secondary)
-                            Text(path).font(.system(.caption2, design: .monospaced)).lineLimit(1)
-                            if path == group.keepPath {
-                                Text("保留").font(.caption2).foregroundStyle(.green)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .listStyle(.inset)
     }
 }

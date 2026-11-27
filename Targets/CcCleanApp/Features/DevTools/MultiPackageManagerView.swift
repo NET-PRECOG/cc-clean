@@ -54,7 +54,7 @@ struct MultiPackageManagerView: View {
                 }
             }
         }
-        .navigationTitle("多包管理器")
+        .navigationTitle("包管理器")
         .overlay(LoadingOverlay(
             isLoading: model.isRefreshing,
             title: "正在枚举全局包…",

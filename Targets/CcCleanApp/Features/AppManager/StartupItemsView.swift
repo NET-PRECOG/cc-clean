@@ -102,7 +102,7 @@ struct StartupItemsView: View {
             header
             content
         }
-        .navigationTitle("启动项与守护项")
+        .navigationTitle("启动与扩展")
         .task { await model.load() }
     }
 

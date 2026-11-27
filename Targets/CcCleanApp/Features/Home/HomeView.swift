@@ -9,21 +9,21 @@ struct HomeView: View {
     @State private var path = NavigationPath()
 
     /// 磁盘行副标题（refreshDisk 拉取真实用量后更新）。
-    @State private var diskSubtitle = "空间分析 · 大文件 · 重复文件"
+    @State private var diskSubtitle = "空间构成分析"
 
-    /// 功能行清单（第一行品牌在列表内；第二行一键清理；第三行磁盘空间；其余顺次）。
+    /// 功能行清单（一键清理 → 应用卸载 → 磁盘空间 → 启动与扩展 → 大文件 → 重复文件
+    /// → 包管理器 → 开发环境 → 隐私与安全 → 设置）。
     private var cards: [(title: String, subtitle: String, icon: String, accent: CCleanTheme.Accent, destination: AnyView)] { [
         ("一键清理", "智能扫描并清理基础垃圾", "sparkle.magnifyingglass", .scan, AnyView(SmartScanView())),
-        ("磁盘空间", diskSubtitle, "externaldrive.fill", .disk, AnyView(SpaceView())),
         ("应用卸载", "深度卸载应用并清理全部残留", "trash.fill", .app, AnyView(UninstallView())),
-        ("启动项与守护项", "管理开机自启动与后台守护项", "paperplane.fill", .loginItem, AnyView(StartupItemsView())),
-        ("更新中心", "多来源版本检测与批量更新", "arrow.triangle.2.circlepath", .update, AnyView(UpdateCenterView())),
-        ("应用清单", "已装应用台账：来源/签名/架构", "list.bullet.rectangle.fill", .inventory, AnyView(AppInventoryView())),
-        ("安全与隐私", "可疑签名 · TCC 权限 · 隐私痕迹", "hand.raised.fill", .privacy, AnyView(SecurityView())),
-        ("图标墙", "全库应用图标一览（缓存 ≤ 200）", "square.grid.2x2.fill", .iconWall, AnyView(IconGridView())),
+        ("磁盘空间", diskSubtitle, "externaldrive.fill", .disk, AnyView(SpaceView())),
+        ("启动与扩展", "管理开机自启动与后台守护项", "paperplane.fill", .loginItem, AnyView(StartupItemsView())),
+        ("大文件", "定位占空间的大文件并分类浏览", "doc.text.fill", .largeFile, AnyView(SpaceView(initialTab: 1))),
+        ("重复文件", "内容相同的冗余文件检测与清理", "doc.on.doc.fill", .duplicate, AnyView(SpaceView(initialTab: 2))),
+        ("包管理器", "npm · pnpm · uv · conda · cargo", "shippingbox.fill", .packages, AnyView(MultiPackageManagerView())),
         ("开发环境", "JDK / PATH / 缓存 / Android SDK", "hammer.fill", .devTools, AnyView(DevToolsView())),
-        ("多包管理器", "npm · pnpm · uv · conda · cargo", "shippingbox.fill", .packages, AnyView(MultiPackageManagerView())),
-        ("关联文件树", "懒加载目录树，体积与 F1 同源", "folder.fill", .fileTree, AnyView(FileTreeView())),
+        ("隐私与安全", "可疑签名 · TCC 权限 · 隐私痕迹", "hand.raised.fill", .privacy, AnyView(SecurityView())),
+        ("设置", "权限能力 · 诊断 · 版本信息", "gearshape.fill", .inventory, AnyView(SettingsView())),
     ] }
 
     var body: some View {
@@ -57,7 +57,7 @@ struct HomeView: View {
             // 顶部毛玻璃垫层：内容滚动经过时透出模糊（交通灯悬浮区内）
             .safeAreaInset(edge: .top, spacing: 0) {
                 Color.clear
-                    .frame(height: 10)
+                    .frame(height: 6)
                     .frame(maxWidth: .infinity)
                     .background(.ultraThinMaterial)
             }

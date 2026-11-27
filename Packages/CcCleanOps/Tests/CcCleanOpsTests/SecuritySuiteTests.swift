@@ -13,6 +13,7 @@ final class FakeSecurityEnvironment: AppEnvironmentProviding, @unchecked Sendabl
 
     func caskTokens() async -> Set<String> { casks }
     func pkgIds() async -> [String] { pkgs }
+    func pkgFiles(pkgId: String) async -> [String]? { nil }
     func pkgContains(pkgId: String, bundlePath: String) async -> Bool { false }
     func hasQuarantine(path: String) async -> Bool { quarantined.contains(path) }
     func codeSignature(of path: String) async -> (teamId: String?, isAdHoc: Bool)? {

@@ -238,7 +238,8 @@ extension SystemInfoService {
     // MARK: 电池循环与健康度
 
     /// 电池循环次数与健康度（AppleSmartBattery IORegistry；无电池设备 → nil）。
-    /// - Returns: cycles = 循环次数；healthPercent = MaxCapacity/DesignCapacity × 100。
+    /// - Returns: cycles = 循环次数；healthPercent = NominalChargeCapacity/DesignCapacity × 100
+    ///   （新版 macOS 顶层 MaxCapacity 已改为百分比，容量明细移入 BatteryData 字典）。
     public static func batteryDetail() -> (cycles: Int, healthPercent: Double)? {
         let entry = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard entry != 0 else { return nil }
@@ -250,11 +251,22 @@ extension SystemInfoService {
             }
             return unmanaged.takeRetainedValue() as? Int
         }
-        guard let cycles = property("CycleCount"),
-              let maxCapacity = property("MaxCapacity"),
-              let designCapacity = property("DesignCapacity"),
-              designCapacity > 0 else { return nil }
-        return (cycles, Double(maxCapacity) / Double(designCapacity) * 100)
+        guard let cycles = property("CycleCount") else { return nil }
+        // 优先 BatteryData 字典（NominalChargeCapacity/DesignCapacity，与系统报告口径一致）
+        var healthPercent: Double?
+        if let unmanaged = IORegistryEntryCreateCFProperty(
+            entry, "BatteryData" as CFString, kCFAllocatorDefault, 0),
+           let dict = unmanaged.takeRetainedValue() as? [String: Any],
+           let nominal = dict["NominalChargeCapacity"] as? Int, nominal > 0,
+           let design = dict["DesignCapacity"] as? Int, design > 0 {
+            healthPercent = Double(nominal) / Double(design) * 100
+        }
+        // 降级：顶层 MaxCapacity（新版为 0~100 百分比）
+        if healthPercent == nil, let maxPct = property("MaxCapacity"), maxPct > 0, maxPct <= 100 {
+            healthPercent = Double(maxPct)
+        }
+        guard let healthPercent else { return nil }
+        return (cycles, healthPercent)
     }
 
     // MARK: 风扇（SMC 用户态）
@@ -276,9 +288,13 @@ extension SystemInfoService {
         var readings: [FanReading] = []
         for index in 0..<fanCount {
             let key = String(format: "F%dAc", index)
-            if let rpmData = smcReadKey(key, connect: connect), rpmData.count >= 2 {
-                let raw = UInt16(rpmData[0]) << 8 | UInt16(rpmData[1])
-                // 风扇名（F*nID，ch8* 32 字节 ASCII，去零与空白）
+            if let full = smcReadFull(key, connect: connect), full.bytes.count >= 2 {
+                // fpe2 定点（2 位小数）→ RPM = 大端 UInt16 / 4；ui16 直接取整
+                let raw = UInt16(full.bytes[0]) << 8 | UInt16(full.bytes[1])
+                let rpm = smcTypeString(full.dataType) == "fpe2"
+                    ? Double(raw) / 4.0
+                    : Double(raw)
+                // 风扇名（F*nID，32 字节 ASCII，去零与空白）
                 var name: String?
                 if let idData = smcReadKey(String(format: "F%dID", index), connect: connect) {
                     let bytes = idData.prefix(while: { $0 != 0 }).filter { $0 != 0 }
@@ -286,63 +302,116 @@ extension SystemInfoService {
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     if let text, !text.isEmpty { name = text }
                 }
-                readings.append(FanReading(index: index, rpm: Double(raw), name: name))
+                readings.append(FanReading(index: index, rpm: rpm, name: name))
             }
         }
         return readings
     }
 
-    // MARK: SMC 底层（用户态 AppleSMC 连接；结构布局与 osx-cpu-temp 开源实现同源，
-    // 总大小 80 字节——内核 user client 按 80 字节写 output，缓冲小于该值会越界写破坏堆
-    // （症状：调用成功但后续 malloc 报 POINTER_BEING_FREED_WAS_NOT_ALLOCATED））
+    // MARK: SMC 底层（用户态 AppleSMC 连接；布局逐字节对齐 osx-cpu-temp 的 SMCKeyData_t
+    // （C 布局 sizeof=80）——Swift 自动布局曾产出 76B/偏移漂移，故手动按 C 偏移构造缓冲）
 
-    private struct SMCVersionStruct {
-        var major: UInt16 = 0
-        var minor: UInt16 = 0
-        var build: UInt8 = 0
-        var reserved: UInt8 = 0
-        var release: UInt16 = 0
-    }   // 8B
-
-    private struct SMCKeyInfoDataStruct {
-        var dataSize: UInt32 = 0
-        var dataType: UInt32 = 0
-        var dataAttributes: UInt8 = 0
-    }   // 9B（stride 12，对齐 4）
-
-    private struct SMCParamStruct {
-        var key: UInt32 = 0                    // 4
-        var vers = SMCVersionStruct()          // 8
-        var limits = SMCVersionStruct()        // 8
-        var dataInfo = SMCKeyInfoDataStruct()  // 12
-        var result: UInt32 = 0                 // 4
-        var status: UInt8 = 0                  // 1
-        var data: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                   UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                   UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                   UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8) =
-            (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)   // 32
-        var op: UInt8 = 0                      // 1
-        var reserved: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
-                       UInt8, UInt8) = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0)   // 补齐至 80
+    /// SMC user client 调用（统一 selector 2；op=9 READ_KEYINFO / op=5 READ_BYTES）。
+    /// C 偏移：key@0-3、keyInfo.dataSize@28、dataType@32、result@40、status@41、op@42、data@48-79。
+    private static func smcCall(
+        key: UInt32, op: UInt8, dataSize: UInt32, connect: io_connect_t
+    ) -> (result: UInt8, dataSize: UInt32, dataType: UInt32, bytes: [UInt8])? {
+        var input = [UInt8](repeating: 0, count: 80)
+        input[0] = UInt8(key >> 24 & 0xFF)     // key 大端（与 _strtoul 字节序一致）
+        input[1] = UInt8(key >> 16 & 0xFF)
+        input[2] = UInt8(key >> 8 & 0xFF)
+        input[3] = UInt8(key & 0xFF)
+        withUnsafeBytes(of: dataSize.littleEndian) {            // keyInfo.dataSize @28（小端）
+            for (i, b) in $0.prefix(4).enumerated() { input[28 + i] = b }
+        }
+        input[42] = op                                          // data8 命令字 @42
+        var output = [UInt8](repeating: 0, count: 80)
+        let inSize = 80
+        var outSize = 80
+        let kr = input.withUnsafeMutableBufferPointer { inPtr in
+            output.withUnsafeMutableBufferPointer { outPtr in
+                IOConnectCallStructMethod(
+                    connect, 2, inPtr.baseAddress!, inSize,
+                    outPtr.baseAddress!, &outSize)
+            }
+        }
+        guard kr == KERN_SUCCESS else {
+            print("SMC_KR_DEBUG: op=\(op) kr=\(kr)")
+            return nil
+        }
+        func leU32(_ offset: Int) -> UInt32 {
+            UInt32(output[offset]) | UInt32(output[offset + 1]) << 8
+                | UInt32(output[offset + 2]) << 16 | UInt32(output[offset + 3]) << 24
+        }
+        return (output[40], leU32(28), leU32(32), Array(output[48...79]))
     }
 
-    /// 读取 SMC 键原始字节（op=5 READ_KEY；失败 nil 优雅降级）。
-    private static func smcReadKey(_ key: String, connect: io_connect_t) -> [UInt8]? {
+    /// 读取 SMC 键（两步：op=9 获取真实 dataSize → op=5 按真实大小读）。
+    private static func smcReadFull(
+        _ key: String, connect: io_connect_t
+    ) -> (dataSize: UInt32, dataType: UInt32, bytes: [UInt8])? {
         let chars = Array(key.utf8.prefix(4))
         guard chars.count == 4 else { return nil }
-        var input = SMCParamStruct()
-        var output = SMCParamStruct()
-        input.key = (UInt32(chars[0]) << 24) | (UInt32(chars[1]) << 16)
+        let keyUint = (UInt32(chars[0]) << 24) | (UInt32(chars[1]) << 16)
             | (UInt32(chars[2]) << 8) | UInt32(chars[3])
-        input.dataInfo.dataSize = 32
-        input.op = 5
-        var inputSize = MemoryLayout<SMCParamStruct>.stride
-        var outputSize = MemoryLayout<SMCParamStruct>.stride
-        let kr = IOConnectCallStructMethod(
-            connect, 1, &input, inputSize, &output, &outputSize)
-        guard kr == KERN_SUCCESS, output.result == 0 else { return nil }
-        return withUnsafeBytes(of: output.data) { Array($0) }
+        // ① keyinfo（op=9）
+        let info = smcCall(key: keyUint, op: 9, dataSize: 0, connect: connect)
+        guard let info else {
+            print("SMC_DEBUG: keyinfo call failed for \(key)")
+            return nil
+        }
+        guard info.result == 0 else {
+            print("SMC_DEBUG: keyinfo result=\(info.result) dSize=\(info.dataSize) dType=\(String(info.dataType, radix: 16)) bytes=\(info.bytes.prefix(6))")
+            return nil
+        }
+        let dataSize = min(info.dataSize, 32)
+        guard dataSize > 0 else {
+            print("SMC_DEBUG: keyinfo dataSize=0 for \(key)")
+            return nil
+        }
+        // ② read（op=5，按真实 dataSize）
+        let read = smcCall(key: keyUint, op: 5, dataSize: dataSize, connect: connect)
+        guard let read else {
+            print("SMC_DEBUG: read call failed for \(key)")
+            return nil
+        }
+        guard read.result == 0 else {
+            print("SMC_DEBUG: read result=\(read.result) dSize=\(read.dataSize) bytes=\(read.bytes.prefix(6))")
+            return nil
+        }
+        return (dataSize, read.dataType, Array(read.bytes.prefix(Int(dataSize))))
+    }
+
+    /// SMC 类型码 → ASCII（如 'fpe2'/'ui16'/'sp78'）。
+    private static func smcTypeString(_ type: UInt32) -> String {
+        let chars = [UInt8(type >> 24 & 0xFF), UInt8(type >> 16 & 0xFF),
+                     UInt8(type >> 8 & 0xFF), UInt8(type & 0xFF)].filter { $0 != 0 }
+        return String(bytes: chars, encoding: .ascii) ?? ""
+    }
+
+    /// SMC 诊断（@testable 实测各键 keyinfo/read 原始结果）。
+    static func smcDiagnostic(
+        _ keys: [String]
+    ) -> [(key: String, dataSize: UInt32, dataType: String, bytes: [UInt8])] {
+
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
+        guard service != 0 else { return [] }
+        defer { IOObjectRelease(service) }
+        var connect: io_connect_t = 0
+        guard IOServiceOpen(service, mach_task_self_, 0, &connect) == KERN_SUCCESS else { return [] }
+        defer { IOServiceClose(connect) }
+        return keys.map { key in
+            guard let full = smcReadFull(key, connect: connect) else {
+                return (key, 0, "", [])
+            }
+            let type = smcTypeString(full.dataType)
+            print("SMC_STEP \(key): size=\(full.dataSize) type='\(type)' bytes=\(full.bytes)")
+            return (key, full.dataSize, type, full.bytes)
+        }
+    }
+
+    /// 读取 SMC 键原始字节（两步协议封装，失败 nil 优雅降级）。
+    private static func smcReadKey(_ key: String, connect: io_connect_t) -> [UInt8]? {
+        smcReadFull(key, connect: connect)?.bytes
     }
 }

@@ -21,26 +21,30 @@ struct StatusPanelView: View {
 
             HStack(spacing: 12) {
                 ringCard(icon: "cpu", title: "CPU",
-                         fraction: model.cpuFraction, ringColor: Color(hex: "FF9F0A")) {
+                         fraction: model.cpuFraction, ringColor: Color(hex: "FF9F0A"),
+                         height: metricCardHeight) {
                     subText(model.chipBrand + (model.cpuCores > 0 ? " · \(model.cpuCores)核" : ""))
                 }                    // 卡 2
                 ringCard(icon: "bolt.horizontal.circle", title: "GPU",
-                         fraction: nil, ringColor: Color(hex: "BF5AF2")) {
+                         fraction: nil, ringColor: Color(hex: "BF5AF2"),
+                         height: metricCardHeight) {
                     subText(model.chipBrand + (model.gpuCores != nil ? " · \(model.gpuCores!)核" : ""))
                 }                    // 卡 3
             }
             HStack(spacing: 12) {
                 ringCard(icon: "memorychip", title: "RAM",
-                         fraction: model.ramFraction, ringColor: Color(hex: "30D158")) {
+                         fraction: model.ramFraction, ringColor: Color(hex: "30D158"),
+                         height: metricCardHeight) {
                     subText("共 \(model.ramTotalText)")
                 }                    // 卡 4
                 ringCard(icon: "internaldrive", title: "磁盘空间",
-                         fraction: model.diskFraction, ringColor: Color(hex: "0A84FF")) {
+                         fraction: model.diskFraction, ringColor: Color(hex: "0A84FF"),
+                         height: metricCardHeight) {
                     subText("可用 \(model.diskFreeText)")
                 }                    // 卡 5
             }
             HStack(spacing: 12) {
-                panelCard(icon: "wifi", title: "网速") {
+                panelCard(icon: "wifi", title: "网速", height: metricCardHeight) {
                     VStack(alignment: .leading, spacing: 6) {
                         if model.ipText != "--" {
                             Text(model.ipText)
@@ -53,7 +57,7 @@ struct StatusPanelView: View {
                         }
                     }
                 }                    // 卡 6
-                panelCard(icon: "fan", title: "风扇") {
+                panelCard(icon: "fan", title: "风扇", height: metricCardHeight) {
                     if model.fanReadings.isEmpty {
                         subText("-")
                     } else {

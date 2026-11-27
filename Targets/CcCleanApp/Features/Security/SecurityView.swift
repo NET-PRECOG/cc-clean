@@ -157,7 +157,7 @@ struct SecurityView: View {
                 .disabled(model.selectedPrivacy.isEmpty)
             }
         }
-        .navigationTitle("安全与隐私")
+        .navigationTitle("隐私与安全")
         .task { await model.refresh() }
     }
 }

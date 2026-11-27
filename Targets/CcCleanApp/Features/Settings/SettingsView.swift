@@ -38,6 +38,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .navigationTitle("设置")
         .frame(width: 520)
         .task { await capability.refresh() }
     }
