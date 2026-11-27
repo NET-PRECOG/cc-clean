@@ -35,8 +35,7 @@ extension CCleanTheme.Accent {
     static let app        = Self(top: Color(hex: "60A5FA"), bottom: Color(hex: "1D4ED8"))  // 应用/卸载·蓝
     static let privacy    = Self(top: Color(hex: "F472B6"), bottom: Color(hex: "A21CAF"))  // 隐私·品红
     static let loginItem  = Self(top: Color(hex: "EC4899"), bottom: Color(hex: "9D174D"))  // 登录项·玫粉
-    static let update     = Self(top: Color(hex: "A855F7"), bottom: Color(hex: "6B21A8"))  // 更新·紫
-    static let iconWall   = Self(top: Color(hex: "22D3EE"), bottom: Color(hex: "0E7490"))  // 图标墙·青
+
     static let devTools   = Self(top: Color(hex: "FB923C"), bottom: Color(hex: "C2410C"))  // 开发·橙
     static let packages   = Self(top: Color(hex: "818CF8"), bottom: Color(hex: "3730A3"))  // 多包·靛
     static let fileTree   = Self(top: Color(hex: "34D399"), bottom: Color(hex: "065F46"))  // 文件树·青绿
