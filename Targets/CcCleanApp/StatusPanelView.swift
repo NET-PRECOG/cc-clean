@@ -88,6 +88,9 @@ struct StatusPanelView: View {
         .onDisappear { model.stop() }
     }
 
+    /// 卡 2-7 统一高度（对齐内容最高项：环形卡 ≈106pt）。
+    private let metricCardHeight: CGFloat = 110
+
     /// 面板位置调整：SwiftUI MenuBarExtra 默认左对齐状态栏图标，
     /// 手动把面板窗口水平居中到图标正下方（clamp 在图标所在屏范围内）。
     private func repositionPanel() {
@@ -205,10 +208,11 @@ struct StatusPanelView: View {
 
     // MARK: - 通用组件
 
-    /// 卡片容器（可选标题头）。
+    /// 卡片容器（可选标题头；height 指定时卡片高度固定）。
     @ViewBuilder
     private func panelCard(
         icon: String, title: String,
+        height: CGFloat? = nil,
         @ViewBuilder content: () -> some View,
         @ViewBuilder header: () -> some View = { EmptyView() }
     ) -> some View {
@@ -229,6 +233,7 @@ struct StatusPanelView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: height, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color(hex: "1C1C1E"))
@@ -242,9 +247,10 @@ struct StatusPanelView: View {
     /// 环形进度卡片（CPU/GPU/RAM/磁盘）。
     private func ringCard(
         icon: String, title: String, fraction: Double?, ringColor: Color,
+        height: CGFloat? = nil,
         @ViewBuilder sub: () -> some View
     ) -> some View {
-        panelCard(icon: icon, title: title) {
+        panelCard(icon: icon, title: title, height: height) {
             HStack(spacing: 14) {
                 RingGauge(
                     fraction: fraction,
