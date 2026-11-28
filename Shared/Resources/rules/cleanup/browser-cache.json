@@ -13,7 +13,8 @@
       "action": { "kind": "trash" },
       "match": {
         "roots": ["~/Library/Caches/com.apple.Safari", "~/Library/Containers/com.apple.Safari/Data/Library/Caches"],
-        "maxDepth": 3
+        "maxDepth": 3,
+        "namePatterns": ["*"]
       },
       "schemaVersion": 1
     },

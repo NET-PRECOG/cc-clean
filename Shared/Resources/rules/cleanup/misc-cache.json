@@ -13,7 +13,8 @@
       "action": { "kind": "trash" },
       "match": {
         "roots": ["~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads"],
-        "maxDepth": 3
+        "maxDepth": 3,
+        "namePatterns": ["*"]
       },
       "schemaVersion": 1
     },
@@ -29,7 +30,8 @@
       "action": { "kind": "trash" },
       "match": {
         "roots": ["~/Library/Application Support/MobileSync/Backup"],
-        "maxDepth": 2
+        "maxDepth": 2,
+        "namePatterns": ["*"]
       },
       "schemaVersion": 1
     },
@@ -45,7 +47,8 @@
       "action": { "kind": "trash" },
       "match": {
         "roots": ["~/Pictures/Photos Library.photoslibrary/private/com.apple.Photos/ExternalEditSessions"],
-        "maxDepth": 3
+        "maxDepth": 3,
+        "namePatterns": ["*"]
       },
       "schemaVersion": 1
     },

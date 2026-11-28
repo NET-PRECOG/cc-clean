@@ -19,7 +19,8 @@
           "~/Library/Developer/CoreSimulator/Caches",
           "~/Library/Developer/CoreSimulator/Cache"
         ],
-        "maxDepth": 1
+        "maxDepth": 1,
+        "namePatterns": ["*"]
       },
       "schemaVersion": 1
     },
@@ -35,7 +36,8 @@
       "action": { "kind": "trash" },
       "match": {
         "roots": ["/Library/Caches"],
-        "maxDepth": 1
+        "maxDepth": 1,
+        "namePatterns": ["*"]
       },
       "schemaVersion": 1
     },

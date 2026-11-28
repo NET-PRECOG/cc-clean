@@ -14,6 +14,7 @@
       "match": {
         "roots": ["~/Library/Caches"],
         "maxDepth": 1,
+        "namePatterns": ["*"],
         "excludePatterns": ["com.apple.CloudDocs", "CloudKit", "familycirclesupport", "com.apple.helpd"]
       },
       "schemaVersion": 1
@@ -23,7 +24,7 @@
       "module": "G1",
       "scope": "cleanup",
       "title": "应用日志",
-      "explain": "7 天前的应用日志文件，仅用于排障，清理不影响任何功能",
+      "explain": "7 天前的应用日志目录与文件，仅用于排障，清理不影响任何功能",
       "risk": "low",
       "defaultSelected": true,
       "requiresRoot": false,
@@ -31,6 +32,8 @@
       "match": {
         "roots": ["~/Library/Logs"],
         "maxDepth": 4,
+        "namePatterns": ["*"],
+        "excludePatterns": ["DiagnosticReports"],
         "olderThanDays": 7
       },
       "schemaVersion": 1
@@ -47,7 +50,8 @@
       "action": { "kind": "trash" },
       "match": {
         "roots": ["~/Library/Logs/DiagnosticReports"],
-        "maxDepth": 2
+        "maxDepth": 2,
+        "namePatterns": ["*"]
       },
       "schemaVersion": 1
     },

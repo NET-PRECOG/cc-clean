@@ -26,11 +26,64 @@ struct CcCleanCLI {
             print("0.1.0")
         case "smoke":
             await runSmoke()
+        case "rulescan":
+            await runRuleScan()
         default:
             FileHandle.standardError.write("unknown command: \(command)\n".data(using: .utf8)!)
-            print("usage: cclean-cli [status|version|smoke]")
+            print("usage: cclean-cli [status|version|smoke|rulescan]")
             exit(2)
         }
+    }
+
+    /// 规则扫描 dry-run（只读评估 .cleanup 规则，打印命中数与体积；验证规则改动用）。
+    static func runRuleScan() async {
+        setvbuf(stdout, nil, _IONBF, 0)
+        let logger = Logger(category: .scan)
+        let rules = Self.loadCleanupRules()
+        print("=== 规则扫描 dry-run（只读，无副作用） ===")
+        print("加载规则 \(rules.count) 条（\(rules.map(\.id).joined(separator: "、"))）")
+        do {
+            let engine = RuleEngine(protected: .builtin, logger: logger)
+            try await engine.load(rules)
+            let start = Date()
+            let hits = await engine.evaluate(RuleContext(scope: .cleanup, budget: .seconds(60)))
+            print("评估用时 \(String(format: "%.1f", Date().timeIntervalSince(start)))s")
+            let fmt = ByteCountFormatter()
+            for hit in hits.sorted(by: { $0.totalBytes > $1.totalBytes }) {
+                let bytes = fmt.string(fromByteCount: hit.totalBytes)
+                print("\(hit.rule.id): \(hit.paths.count) 项 / \(bytes)\(hit.partial ? "（部分）" : "")")
+                for p in hit.paths.prefix(3) { print("   · \(p)") }
+            }
+            let total = hits.reduce(0) { $0 + $1.totalBytes }
+            let count = hits.reduce(0) { $0 + $1.paths.count }
+            print("总计命中 \(count) 项 / \(fmt.string(fromByteCount: total))")
+        } catch {
+            FileHandle.standardError.write("rulescan failed: \(error)\n".data(using: .utf8)!)
+            exit(1)
+        }
+        print("=== dry-run 完成（全部只读） ===")
+    }
+
+    /// 加载 cleanup 内置规则（与 App 侧 BundledRuleLoader 同源逻辑；CLI 场景读仓库相对路径）。
+    static func loadCleanupRules() -> [RuleFile] {
+        let fm = FileManager.default
+        let dir = fm.currentDirectoryPath + "/Shared/Resources/rules/cleanup"
+        guard fm.fileExists(atPath: dir),
+              let files = try? fm.contentsOfDirectory(atPath: dir) else {
+            FileHandle.standardError.write("rules dir not found: \(dir)（须在仓库根目录运行）\n".data(using: .utf8)!)
+            exit(1)
+        }
+        var rules: [RuleFile] = []
+        for f in files.sorted() where f.hasSuffix(".json") && f != "zombie-launchd.json" {
+            guard let data = fm.contents(atPath: dir + "/" + f) else { continue }
+            switch RuleValidator.validateJSON(data) {
+            case .success(let pack):
+                rules.append(contentsOf: pack.rules)
+            case .failure(let failure):
+                FileHandle.standardError.write("⚠️ \(f) 校验失败: \(failure.errors.map(\.message).joined(separator: "; "))\n".data(using: .utf8)!)
+            }
+        }
+        return rules
     }
 
     /// 真实环境功能冒烟（全部只读服务，无写盘无删除；绕过签名的功能回归通道）。
