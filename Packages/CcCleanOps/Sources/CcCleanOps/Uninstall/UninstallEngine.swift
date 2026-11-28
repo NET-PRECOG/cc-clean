@@ -72,10 +72,7 @@ public struct UninstallReport: Codable, Sendable {
 
     /// JSON 导出。
     public func exportJSON() throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(self)
+        try JSONCoding.encoder(prettyPrinted: true).encode(self)
     }
 }
 
@@ -248,8 +245,7 @@ public actor UninstallEngine {
     // MARK: - 报告落库（uninstall_history，90 天保留）
 
     private func persistReport(_ report: UninstallReport, plan: UninstallPlan) async {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = JSONCoding.encoder()
         guard let planData = try? encoder.encode(plan),
               let reportData = try? encoder.encode(report) else { return }
         _ = try? await store.pool.write { db in

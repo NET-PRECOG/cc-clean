@@ -38,8 +38,7 @@ public struct HelperAuditStore: Sendable {
         journalID: String, action: String, paths: [String],
         response: HelperResponse, clientToken: String?
     ) {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = JSONCoding.encoder()
         let pathsData = try? encoder.encode(paths)
         let resultData = try? encoder.encode(response)
         _ = try? pool.write { db in

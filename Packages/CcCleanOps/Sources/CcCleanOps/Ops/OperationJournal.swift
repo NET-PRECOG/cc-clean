@@ -349,10 +349,7 @@ public actor OperationJournal {
 
     /// 审计文件：journal/<id>.json（基线 6.3 要点 8；保留 90 天由启动清理负责）。
     private func writeAuditFile(_ record: JournalRecord) async {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(record) else { return }
+        guard let data = try? JSONCoding.encoder(prettyPrinted: true).encode(record) else { return }
         let url = journalDirectory.appendingPathComponent("\(record.journalID.uuidString).json")
         try? data.write(to: url, options: .atomic)
     }
@@ -401,8 +398,7 @@ public actor OperationJournal {
     // MARK: - 落库
 
     private func persist(_ record: JournalRecord) async {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = JSONCoding.encoder()
         guard let opsData = try? encoder.encode(record.ops) else { return }
         let resultData = record.results.flatMap { try? encoder.encode($0) }
         _ = try? await store.pool.write { db in
@@ -431,8 +427,7 @@ public actor OperationJournal {
     }
 
     static func rowToRecord(_ row: Row) -> JournalRecord? {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = JSONCoding.decoder()
         guard let idString: String = row["journal_id"],
               let id = UUID(uuidString: idString),
               let title: String = row["title"],

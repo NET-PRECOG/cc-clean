@@ -207,7 +207,7 @@ struct UninstallView: View {
                 if !item.undoable {
                     Text("不可撤销").font(.caption2).foregroundStyle(.red)
                 }
-                Text(ByteCountFormatter.string(fromByteCount: item.bytes, countStyle: .file))
+                Text(CCleanTheme.formatBytes(item.bytes))
                     .font(.caption).monospacedDigit().foregroundStyle(.secondary)
             }
         }
@@ -218,7 +218,7 @@ struct UninstallView: View {
     private var bottomBar: some View {
         HStack(spacing: 16) {
             let summary = model.riskSummary
-            Text("已选 \(summary.total) 项 · \(ByteCountFormatter.string(fromByteCount: summary.bytes, countStyle: .file))")
+            Text("已选 \(summary.total) 项 · \(CCleanTheme.formatBytes(summary.bytes))")
             if summary.highRisk > 0 {
                 Text("⚠ 高危 \(summary.highRisk) 项").foregroundStyle(.red).font(.caption)
             }

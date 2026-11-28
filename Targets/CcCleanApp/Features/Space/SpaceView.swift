@@ -26,12 +26,9 @@ final class SpaceViewModel {
         isIndexing = true
         defer { isIndexing = false }
 
-        // FSIndex 初始化（复用索引库）
+        // FSIndex 初始化（复用索引库；构造参数统一走 FSIndexFactory）
         if index == nil {
-            index = try? FSIndex(
-                database: Paths.indexDatabase,
-                logger: Logger(category: .scan, buffer: LogBuffer(capacity: 10))
-            )
+            index = FSIndexFactory.make()
         }
         guard let index else { return }
 
@@ -137,21 +134,13 @@ struct SpaceView: View {
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("已用空间").font(.caption).foregroundStyle(.secondary)
-                Text(ByteCountFormatter.string(fromByteCount: model.totalUsedBytes, countStyle: .file))
-                    .font(.title2.bold())
-            }
-            Spacer()
-            if let last = model.lastScanAt {
-                Text("扫描 \(last.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+        PageHeader(
+            caption: "已用空间",
+            title: CCleanTheme.formatBytes(model.totalUsedBytes),
+            lastScanAt: model.lastScanAt
+        ) {
             Button("刷新") { Task { await model.refresh() } }
         }
-        .padding(12)
-        .background(.bar)
     }
 
     // MARK: - F1 Treemap
@@ -185,7 +174,7 @@ struct SpaceView: View {
                         HStack {
                             Text(node.name).lineLimit(1)
                             Spacer()
-                            Text(ByteCountFormatter.string(fromByteCount: node.bytes, countStyle: .file))
+                            Text(CCleanTheme.formatBytes(node.bytes))
                                 .monospacedDigit().foregroundStyle(.secondary)
                         }
                         .font(.caption)

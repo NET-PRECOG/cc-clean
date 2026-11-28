@@ -117,7 +117,7 @@ struct DevToolsView: View {
                         .labelsHidden()
                         VStack(alignment: .leading) {
                             Text(item.title).font(.headline)
-                            Text("\(item.path) · \(ByteCountFormatter.string(fromByteCount: item.bytes, countStyle: .file))")
+                            Text("\(item.path) · \(CCleanTheme.formatBytes(item.bytes))")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }

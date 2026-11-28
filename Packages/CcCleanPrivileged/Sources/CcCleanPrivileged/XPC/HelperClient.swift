@@ -56,8 +56,7 @@ public final class XPCHelperClient: HelperClientProtocol, @unchecked Sendable {
     // MARK: - 传输
 
     private func send(_ request: HelperRequest) async -> HelperResponse {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = JSONCoding.encoder()
         guard let payload = try? encoder.encode(request) else {
             return HelperResponse(succeeded: [], failed: ["*": "请求编码失败"])
         }
@@ -82,9 +81,7 @@ public final class XPCHelperClient: HelperClientProtocol, @unchecked Sendable {
                 return
             }
             proxy.execute(payload) { replyData in
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
-                let response = (try? decoder.decode(HelperResponse.self, from: replyData))
+                let response = (try? JSONCoding.decoder().decode(HelperResponse.self, from: replyData))
                     ?? HelperResponse(succeeded: [], failed: ["*": "Helper 响应解码失败"])
                 continuation.resume(returning: response)
             }

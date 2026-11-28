@@ -62,10 +62,7 @@ public struct DiagnosticExporter: Sendable {
     /// 写出 JSON 文件。`.atomic` 原子写（基线 6.3 要点 6）。
     public func export(to url: URL, context: DiagnosticContext, minLevel: LogLevel = .info) throws {
         let report = buildReport(context: context, minLevel: minLevel)
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data = try encoder.encode(report)
+        let data = try JSONCoding.encoder(prettyPrinted: true).encode(report)
         try data.write(to: url, options: .atomic)
     }
 }

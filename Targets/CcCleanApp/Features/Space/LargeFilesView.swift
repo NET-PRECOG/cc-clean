@@ -1,6 +1,7 @@
 import SwiftUI
 import CcCleanCore
 import CcCleanFS
+import CcCleanOps
 
 /// 大文件 ViewModel（独立功能页：FSIndex + LargeFileScanner，分类筛选 + 搜索 + 移入废纸篓）。
 @Observable
@@ -9,6 +10,8 @@ final class LargeFilesViewModel {
 
     private var index: FSIndex?
     private let scanner = LargeFileScanner()
+    /// 废纸篓唯一出口（代码红线：写盘通道收敛在 TrashService）。
+    private let trashService = TrashService()
 
     private(set) var isScanning = false
     private(set) var scanningProgress: (scanned: Int, path: String)?
@@ -37,10 +40,7 @@ final class LargeFilesViewModel {
         defer { isScanning = false }
 
         if index == nil {
-            index = try? FSIndex(
-                database: Paths.indexDatabase,
-                logger: Logger(category: .scan, buffer: LogBuffer(capacity: 10))
-            )
+            index = FSIndexFactory.make()
         }
         guard let index else { return }
 
@@ -70,13 +70,12 @@ final class LargeFilesViewModel {
     // MARK: - 操作
 
     /// 移入废纸篓（可撤销；成功后从列表即时隐藏）。
-    func trash(_ entry: LargeFileEntry) {
-        do {
-            try FileManager.default.trashItem(at: URL(fileURLWithPath: entry.path), resultingItemURL: nil)
+    func trash(_ entry: LargeFileEntry) async {
+        let result = await trashService.trash(paths: [entry.path])
+        if result.succeeded[entry.path] != nil {
             trashedPaths.insert(entry.path)
-        } catch {
-            // 保持列表不变（不伪造成功）
         }
+        // 失败保持列表不变（不伪造成功）
     }
 }
 
@@ -101,21 +100,13 @@ struct LargeFilesView: View {
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("大文件占用").font(.caption).foregroundStyle(.secondary)
-                Text(CCleanTheme.formatBytes(model.totalBytes))
-                    .font(.title2.bold())
-            }
-            Spacer()
-            if let last = model.lastScanAt {
-                Text("扫描 \(last.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+        PageHeader(
+            caption: "大文件占用",
+            title: CCleanTheme.formatBytes(model.totalBytes),
+            lastScanAt: model.lastScanAt
+        ) {
             Button("刷新") { Task { await model.refresh() } }
         }
-        .padding(12)
-        .background(.bar)
     }
 
     /// 分类胶囊（点击切换筛选；再点同胶囊取消回到全部）。
@@ -167,7 +158,7 @@ struct LargeFilesView: View {
                 Text(CCleanTheme.formatBytes(entry.bytes))
                     .font(.caption).monospacedDigit()
                 Button {
-                    model.trash(entry)
+                    Task { await model.trash(entry) }
                 } label: {
                     Image(systemName: "trash")
                 }

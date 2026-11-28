@@ -148,18 +148,12 @@ struct JunkPreviewView: View {
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("可回收空间估算")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text(ByteCountFormatter.string(fromByteCount: model.totalReclaimable, countStyle: .file))
-                    .font(.title2.bold())
-            }
-            Spacer()
+        PageHeader(
+            caption: "可回收空间估算",
+            title: CCleanTheme.formatBytes(model.totalReclaimable)
+        ) {
             Button("重新评估") { Task { await model.evaluateReadOnly() } }
         }
-        .padding(12)
-        .background(.bar)
     }
 
     /// 规则行（S18 G1：勾选框 + 可解释性 + 风险色 + 命中数；高危锁定不可勾选）。
@@ -181,7 +175,7 @@ struct JunkPreviewView: View {
                     .frame(width: 8, height: 8)
                 Text(hit.rule.title).font(.body.weight(.medium))
                 Spacer()
-                Text(ByteCountFormatter.string(fromByteCount: hit.totalBytes, countStyle: .file))
+                Text(CCleanTheme.formatBytes(hit.totalBytes))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }

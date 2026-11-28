@@ -74,6 +74,10 @@ struct HomeView: View {
             .onReceive(NotificationCenter.default.publisher(for: .openSmartScan)) { _ in
                 path.append("一键清理")
             }
+            // 面板"打开主界面"（cclean://main）：主窗口已关闭时由 SwiftUI 重建并激活
+            .onOpenURL { _ in
+                NSApp.activate(ignoringOtherApps: true)
+            }
             .task { await refreshDisk() }
         }
         .frame(minWidth: 900, minHeight: 620)

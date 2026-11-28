@@ -1,4 +1,5 @@
 import CcCleanCore
+import CcCleanFS
 import CcCleanOps
 import CcCleanPrivileged
 
@@ -15,6 +16,16 @@ enum DatabaseStoreHolder {
             fatalError("database open failed: \(error)")
         }
     }()
+}
+
+/// FSIndex 统一工厂（App 内唯一构造参数出口；各功能页独立持有实例，不共享并发状态）。
+enum FSIndexFactory {
+    static func make() -> FSIndex? {
+        try? FSIndex(
+            database: Paths.indexDatabase,
+            logger: Logger(category: .scan, buffer: LogBuffer(capacity: 10))
+        )
+    }
 }
 
 /// OperationJournal 单例（App 生命周期共享；注入 XPCHelperClient 打通系统级通路，S10）。

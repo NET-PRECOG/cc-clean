@@ -23,9 +23,12 @@ enum CCleanTheme {
     static let cardCornerRadius: CGFloat = 20
 
     /// 字节格式化（0 显示 "0 KB"——ByteCountFormatter 会输出英文 "Zero KB"）。
-    static func formatBytes(_ bytes: Int64) -> String {
+    /// countStyle 按场景选择：文件体积 .file / 磁盘容量 .decimal / 内存网速 .memory。
+    static func formatBytes(
+        _ bytes: Int64, style: ByteCountFormatter.CountStyle = .file
+    ) -> String {
         guard bytes > 0 else { return "0 KB" }
-        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: style)
     }
 }
 
@@ -120,6 +123,33 @@ struct FeatureRowView: View {
         .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
+/// 功能页统一页头：caption 小标题 + title2 加粗主值 + 尾部动作区（扫描时间/按钮等）。
+/// 各功能页 header 的公共骨架，消除逐页重复的布局样板。
+struct PageHeader<Trailing: View>: View {
+    let caption: String
+    let title: String
+    /// 最近扫描时间（nil 不显示；格式「扫描 日期 时间」）。
+    var lastScanAt: Date? = nil
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(caption).font(.caption).foregroundStyle(.secondary)
+                Text(title).font(.title2.bold())
+            }
+            Spacer()
+            if let lastScanAt {
+                Text("扫描 \(lastScanAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            trailing()
+        }
+        .padding(12)
+        .background(.bar)
+    }
+}
+
 /// 统一加载遮罩：扫描/加载中显示动画层（渐变徽章旋转 + 标题 + 可选进度副标题），
 /// 完毕自动消失展示内容页面。各功能页以 `.overlay(LoadingOverlay(...))` 或分支模式接入。
 struct LoadingOverlay: View {

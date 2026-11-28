@@ -1,6 +1,7 @@
 import SwiftUI
 import CcCleanCore
 import CcCleanFS
+import CcCleanOps
 
 /// 重复文件 ViewModel（独立功能页：候选目录扫描 → 三级查重 → 勾选移入废纸篓）。
 @Observable
@@ -10,6 +11,8 @@ final class DuplicateFilesViewModel {
     private var index: FSIndex?
     private let detector = DuplicateFileDetector(
         logger: Logger(category: .scan, buffer: LogBuffer(capacity: 10)))
+    /// 废纸篓唯一出口（代码红线：写盘通道收敛在 TrashService）。
+    private let trashService = TrashService()
 
     private(set) var isScanning = false
     private(set) var scanningProgress: (scanned: Int, path: String)?
@@ -55,10 +58,7 @@ final class DuplicateFilesViewModel {
         defer { isScanning = false }
 
         if index == nil {
-            index = try? FSIndex(
-                database: Paths.indexDatabase,
-                logger: Logger(category: .scan, buffer: LogBuffer(capacity: 10))
-            )
+            index = FSIndexFactory.make()
         }
         guard let index else { return }
 
@@ -88,15 +88,9 @@ final class DuplicateFilesViewModel {
     }
 
     /// 勾选副本移入废纸篓（可撤销；成功后从分组即时隐藏）。
-    func trashSelected() {
-        for path in selected where trashedPaths.contains(path) == false {
-            do {
-                try FileManager.default.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil)
-                trashedPaths.insert(path)
-            } catch {
-                // 单个失败跳过（保留勾选，不伪造成功）
-            }
-        }
+    func trashSelected() async {
+        let result = await trashService.trash(paths: selected.subtracting(trashedPaths).sorted())
+        trashedPaths.formUnion(result.succeeded.keys)
         selected.subtract(trashedPaths)
     }
 }
@@ -121,23 +115,15 @@ struct DuplicateFilesView: View {
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("重复组").font(.caption).foregroundStyle(.secondary)
-                Text("\(model.visibleGroups.count) 组")
-                    .font(.title2.bold())
-            }
-            Spacer()
-            if let last = model.lastScanAt {
-                Text("扫描 \(last.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+        PageHeader(
+            caption: "重复组",
+            title: "\(model.visibleGroups.count) 组",
+            lastScanAt: model.lastScanAt
+        ) {
             Button("刷新") { Task { await model.refresh() } }
-            Button("删除勾选（可恢复）") { model.trashSelected() }
+            Button("删除勾选（可恢复）") { Task { await model.trashSelected() } }
                 .disabled(model.selectedCount == 0)
         }
-        .padding(12)
-        .background(.bar)
     }
 
     private var groupList: some View {

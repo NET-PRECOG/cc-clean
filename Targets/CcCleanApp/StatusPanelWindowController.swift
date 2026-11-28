@@ -1,6 +1,12 @@
 import AppKit
 import SwiftUI
 
+/// 可成为 key 窗口的透明面板（NSPanel + .nonactivatingPanel 默认 canBecomeKey 不可靠，
+/// 不重写会导致面板内 SwiftUI 按钮点击无响应）。
+final class KeyablePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
 /// 状态栏面板窗口控制器（CleanUp 同款架构：NSStatusItem + 全透明 NSPanel）。
 /// 完全掌控窗口透明/层级/定位，替代 MenuBarExtra（其窗口透明无法可靠设置）。
 @MainActor
@@ -25,7 +31,7 @@ final class StatusPanelWindowController {
         statusItem = item
 
         // 全透明面板（CleanUp 同款：无底色，仅卡片浮层）
-        let panel = NSPanel(
+        let panel = KeyablePanel(
             contentRect: NSRect(x: 0, y: 0, width: 445, height: 560),
             styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
             backing: .buffered, defer: false
@@ -38,7 +44,7 @@ final class StatusPanelWindowController {
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovableByWindowBackground = false
-        panel.becomesKeyOnlyIfNeeded = true
+        panel.becomesKeyOnlyIfNeeded = false   // 点击面板即成 key（SwiftUI 按钮才可响应）
         panel.hidesOnDeactivate = false
         panel.contentView = NSHostingView(rootView: StatusPanelView())
 
@@ -72,14 +78,20 @@ final class StatusPanelWindowController {
             userInfo: ["visible": false])
     }
 
-    /// 打开主界面（面板操作条按钮经通知调用）：激活已有主窗口。
+    /// 打开主界面（面板操作条按钮经通知调用）：
+    /// 主窗口可见则激活；已关闭（WindowGroup 窗口销毁，AppKit 无法重建）则经 URL scheme
+    /// 让 SwiftUI 重建主窗口（cclean://main 已在 Info.plist CFBundleURLTypes 注册）。
     func activateMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
         let main = NSApp.windows.first { window in
             !(window is NSPanel) && window.isVisible
                 && window.frame.width > 600          // 排除状态栏面板/小窗口/设置窗口
         }
-        main?.makeKeyAndOrderFront(nil)
+        if let main {
+            main.makeKeyAndOrderFront(nil)
+        } else if let url = URL(string: "cclean://main") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     /// 定位到状态栏图标正下方水平居中（clamp 在图标所在屏范围内）。

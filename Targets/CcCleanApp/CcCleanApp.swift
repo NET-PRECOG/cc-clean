@@ -56,11 +56,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateCancel
     }
 
-    /// 自定义 Dock 菜单（完全替换系统菜单，无"退出"项）。
+    /// 自定义 Dock 菜单：打开主界面 + 真正退出（面板常驻不受影响）。
+    /// 必须显式设 target=self：AppDelegate 不在 responder chain，
+    /// 省略 target 时 action 沿响应链找不到接收者 → 菜单项点击无效。
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(
-            title: "打开主界面", action: #selector(activateMainWindow), keyEquivalent: ""))
+
+        let openItem = NSMenuItem(
+            title: "打开主界面", action: #selector(activateMainWindow), keyEquivalent: "")
+        openItem.target = self
+        menu.addItem(openItem)
+
+        let exitItem = NSMenuItem(
+            title: "退出 CClean", action: #selector(exitFromDock), keyEquivalent: "")
+        exitItem.target = self
+        menu.addItem(exitItem)
+
         return menu
     }
 
@@ -68,6 +79,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func requestRealExit() {
         realExitRequested = true
         NSApp.terminate(nil)
+    }
+
+    /// Dock 菜单"退出 CClean" → 真正退出（与面板退出同一通路）。
+    @objc func exitFromDock() {
+        requestRealExit()
     }
 
     @objc func activateMainWindow() {
