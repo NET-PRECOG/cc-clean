@@ -127,15 +127,30 @@ public final class CPUMemorySampler: MetricSampling, @unchecked Sendable {
         mach_port_deallocate(mach_task_self_, host)
         guard kr == KERN_SUCCESS else { return nil }
 
-        let pageSize = UInt64(getpagesize())
-        let used = (UInt64(stats.active_count) + UInt64(stats.wire_count)
+        // 页大小：vm_statistics64 的页数按内核页计（Apple Silicon = 16384）。
+        // getpagesize() 返回 4096 会让已用内存低估 4 倍——必须用 host_page_size。
+        var pg: vm_size_t = 0
+        host_page_size(host, &pg)
+        let pageSize = UInt64(pg)
+
+        // 活动监视器"已用内存"口径 = Apps + Wired + Compressed
+        // （internal=App 匿名页，wire=已连线，compressor=内存压缩器占用的物理页）
+        let used = (UInt64(stats.internal_page_count) + UInt64(stats.wire_count)
             + UInt64(stats.compressor_page_count)) * pageSize
 
-        // 内存压力近似：free 占比（POC-T4 真机校准 phys_memory_pressure 口径）
-        let total = UInt64(stats.active_count + stats.free_count + stats.wire_count
-            + stats.speculative_count + stats.purgeable_count + stats.external_page_count)
-        let freeRatio = Double(stats.free_count) / Double(max(total, 1))
-        let pressureLevel: Double = freeRatio < 0.05 ? 3 : (freeRatio < 0.15 ? 2 : 1)
+        // 内存压力：jetsam 真实等级（kern.memorystatus_vm_pressure_level，1=normal 2=warning 3=critical）；
+        // sysctl 不可用时退回 free 占比近似
+        var pressureLevel: Double = 1
+        var level: Int32 = 0
+        var levelLen = MemoryLayout<Int32>.size
+        if sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &levelLen, nil, 0) == 0, level >= 1 {
+            pressureLevel = Double(min(level, 3))
+        } else {
+            let total = UInt64(stats.internal_page_count + stats.wire_count
+                + stats.compressor_page_count + stats.free_count + stats.external_page_count)
+            let freeRatio = Double(stats.free_count) / Double(max(total, 1))
+            pressureLevel = freeRatio < 0.05 ? 3 : (freeRatio < 0.15 ? 2 : 1)
+        }
 
         return MemoryStats(
             usedBytes: Double(used),

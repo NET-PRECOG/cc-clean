@@ -19,30 +19,33 @@ final class DuplicateFilesViewModel {
     private(set) var trashedPaths: Set<String> = []
     /// 每组勾选待删除的副本路径（默认排除保留项）。
     private(set) var selected: Set<String> = []
+    /// 路径 → 单份大小（勾选合计可释放空间用）。
+    private var bytesByPath: [String: Int64] = [:]
 
     /// 扫描候选根（下载与缓存目录，控制规模）。
     private var candidateRoots: [String] {
         [NSHomeDirectory() + "/Downloads", NSHomeDirectory() + "/Library/Caches"]
     }
 
-    /// 过滤已删除后仍有效的分组（组内剩余 ≥ 2 份才展示）。
+    /// 组内剔除已删除路径后仍 ≥ 2 份的分组。
     var visibleGroups: [DuplicateGroup] {
-        groups.map { group in
-            DuplicateGroup(
-                paths: group.paths.filter { trashedPaths.contains($0) == false },
-                bytesPerFile: group.bytesPerFile,
-                hasHardlinks: group.hasHardlinks,
-                keepPath: group.keepPath)
-        }
-        .filter { $0.paths.count >= 2 }
+        groups.filter { survivingPaths(in: $0).count >= 2 }
+    }
+
+    /// 组内未删除的路径（keepPath 为剩余最早一份）。
+    func survivingPaths(in group: DuplicateGroup) -> [String] {
+        group.paths.filter { trashedPaths.contains($0) == false }
     }
 
     /// 勾选项合计可释放空间。
     var selectedBytes: Int64 {
-        Int64(selected.count) * (visibleGroups.first { !$0.paths.isEmpty }?.bytesPerFile ?? 0)
+        selected.reduce(Int64(0)) { $0 + (bytesByPath[$1] ?? 0) }
     }
 
     var selectedCount: Int { selected.count }
+
+    /// 单份文件大小（组内每份同大小）。
+    func bytes(for path: String) -> Int64 { bytesByPath[path] ?? 0 }
 
     // MARK: - 扫描
 
@@ -63,6 +66,10 @@ final class DuplicateFilesViewModel {
             .filter { !$0.isDirectory && $0.allocatedSize > 1024 * 1024 }
             .map(\.path)
         groups = await detector.detect(candidates: candidates)
+        bytesByPath = Dictionary(
+            uniqueKeysWithValues: groups.flatMap { group in
+                group.paths.map { ($0, group.bytesPerFile) }
+            })
         selected = Set(groups.flatMap { group in
             group.paths.filter { $0 != group.keepPath }
         })
@@ -139,8 +146,9 @@ struct DuplicateFilesView: View {
                 Text("未发现重复文件").foregroundStyle(.secondary)
             }
             ForEach(model.visibleGroups, id: \.keepPath) { group in
-                Section("每组 \(group.paths.count) 份 × \(CCleanTheme.formatBytes(group.bytesPerFile))\(group.hasHardlinks ? "（含硬链接）" : "")") {
-                    ForEach(group.paths, id: \.self) { path in
+                let paths = model.survivingPaths(in: group)
+                Section("每组 \(paths.count) 份 × \(CCleanTheme.formatBytes(group.bytesPerFile))\(group.hasHardlinks ? "（含硬链接）" : "")") {
+                    ForEach(paths, id: \.self) { path in
                         row(path: path, keepPath: group.keepPath)
                     }
                 }
@@ -162,7 +170,7 @@ struct DuplicateFilesView: View {
                     .foregroundStyle(.green)
             } else {
                 Image(systemName: model.selected.contains(path) ? "checkmark.square" : "square")
-                    .foregroundStyle(model.selected.contains(path) ? .accentColor : .secondary)
+                    .foregroundStyle(model.selected.contains(path) ? Color.accentColor : Color.secondary)
                     .onTapGesture { model.toggle(path) }
             }
             Text(path).font(.system(.caption2, design: .monospaced)).lineLimit(1)
@@ -170,7 +178,7 @@ struct DuplicateFilesView: View {
             if isKeep {
                 Text("保留").font(.caption2).foregroundStyle(.green)
             } else {
-                Text(CCleanTheme.formatBytes(pathBytes))
+                Text(CCleanTheme.formatBytes(model.bytes(for: path)))
                     .font(.caption2).monospacedDigit().foregroundStyle(.secondary)
             }
         }

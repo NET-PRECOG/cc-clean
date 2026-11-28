@@ -111,12 +111,18 @@ final class MonitorViewModel {
 
     var networkRxText: String {
         let v = latest?.samples.first { $0.kind == .networkRx }?.value ?? 0
-        return ByteCountFormatter.string(fromByteCount: Int64(v), countStyle: .memory) + "/s"
+        return rateText(v)
     }
 
     var networkTxText: String {
         let v = latest?.samples.first { $0.kind == .networkTx }?.value ?? 0
-        return ByteCountFormatter.string(fromByteCount: Int64(v), countStyle: .memory) + "/s"
+        return rateText(v)
+    }
+
+    /// 网速文本（0 特判为 "0 KB/s"；ByteCountFormatter 对 0 输出 "Zero KB/s" 不符合面板口径）。
+    private func rateText(_ bytesPerSecond: Double) -> String {
+        guard bytesPerSecond > 0 else { return "0 KB/s" }
+        return ByteCountFormatter.string(fromByteCount: Int64(bytesPerSecond), countStyle: .memory) + "/s"
     }
 
     // MARK: - E10 结束进程
@@ -143,6 +149,9 @@ extension MonitorViewModel: MetricsConsumer {
     nonisolated var id: String { "monitor-view" }
 
     func didSample(_ batch: MetricBatch) async {
+        // 保存最新采样（面板/监控页 CPU、内存、网速读数来源）
+        latest = batch
+
         // E3：逐核值追加历史（每核 60 点环形；首次采样无差分记录为 -1 → 曲线虚线段）
         guard let detail = batch.samples.first(where: { $0.kind == .cpuPerCore })?.detail,
               let data = detail.data(using: .utf8),

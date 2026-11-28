@@ -280,21 +280,37 @@ extension SystemInfoService {
         guard IOServiceOpen(service, mach_task_self_, 0, &connect) == KERN_SUCCESS else { return [] }
         defer { IOServiceClose(connect) }
 
-        // 风扇数量（#NUMFAN，ui16 大端）
-        guard let numData = smcReadKey("#NUMFAN", connect: connect), numData.count >= 2 else { return [] }
-        let fanCount = Int(numData[0]) << 8 | Int(numData[1])
-        guard fanCount > 0, fanCount <= 4 else { return [] }
+        // 风扇数量（FNum，ui8/ui16）
+        guard let numData = smcReadKey("FNum", connect: connect), let rawCount = numData.first,
+              rawCount > 0, rawCount <= 4 else { return [] }
+        let fanCount = Int(rawCount)
 
         var readings: [FanReading] = []
         for index in 0..<fanCount {
             let key = String(format: "F%dAc", index)
-            if let full = smcReadFull(key, connect: connect), full.bytes.count >= 2 {
-                // fpe2 定点（2 位小数）→ RPM = 大端 UInt16 / 4；ui16 直接取整
-                let raw = UInt16(full.bytes[0]) << 8 | UInt16(full.bytes[1])
-                let rpm = smcTypeString(full.dataType) == "fpe2"
-                    ? Double(raw) / 4.0
-                    : Double(raw)
-                // 风扇名（F*nID，32 字节 ASCII，去零与空白）
+            if let full = smcReadFull(key, connect: connect) {
+                // 转速按 dataType 解析：'flt '（M 系新固件 4 字节 IEEE float 小端）/
+                // fpe2（老固件定点 /4）/ ui16 / ui8
+                let type = smcTypeString(full.dataType)
+                let b = full.bytes
+                let raw16 = b.count >= 2 ? UInt16(b[0]) << 8 | UInt16(b[1]) : 0
+                let rpm: Double
+                switch type {
+                case "flt " where b.count >= 4:
+                    let bits = UInt32(b[0]) | UInt32(b[1]) << 8
+                        | UInt32(b[2]) << 16 | UInt32(b[3]) << 24
+                    rpm = Double(Float(bitPattern: bits))
+                case "fpe2" where b.count >= 2:
+                    rpm = Double(raw16) / 4.0
+                case "ui16" where b.count >= 2:
+                    rpm = Double(raw16)
+                case "ui8" where b.count >= 1:
+                    rpm = Double(b[0])
+                default:
+                    continue   // 未知类型不伪造（基线 6.4）
+                }
+                guard rpm >= 0, rpm.isFinite else { continue }
+                // 风扇名（F*nID，32 字节 ASCII，去零与空白；部分机型无此键）
                 var name: String?
                 if let idData = smcReadKey(String(format: "F%dID", index), connect: connect) {
                     let bytes = idData.prefix(while: { $0 != 0 }).filter { $0 != 0 }
@@ -312,15 +328,15 @@ extension SystemInfoService {
     // （C 布局 sizeof=80）——Swift 自动布局曾产出 76B/偏移漂移，故手动按 C 偏移构造缓冲）
 
     /// SMC user client 调用（统一 selector 2；op=9 READ_KEYINFO / op=5 READ_BYTES）。
-    /// C 偏移：key@0-3、keyInfo.dataSize@28、dataType@32、result@40、status@41、op@42、data@48-79。
+    /// C 偏移（已验证）：key@0-3、keyInfo.dataSize@28、dataType@32、result@40、status@41、op@42、data@48-79。
+    /// 字段均为小端（ARM64/x64）；key 以 UInt32 小端写入（大端逐字节写会读到反序键名 → keyinfo not found）。
     private static func smcCall(
         key: UInt32, op: UInt8, dataSize: UInt32, connect: io_connect_t
     ) -> (result: UInt8, dataSize: UInt32, dataType: UInt32, bytes: [UInt8])? {
         var input = [UInt8](repeating: 0, count: 80)
-        input[0] = UInt8(key >> 24 & 0xFF)     // key 大端（与 _strtoul 字节序一致）
-        input[1] = UInt8(key >> 16 & 0xFF)
-        input[2] = UInt8(key >> 8 & 0xFF)
-        input[3] = UInt8(key & 0xFF)
+        withUnsafeBytes(of: key.littleEndian) {                 // key @0-3（小端）
+            for (i, b) in $0.prefix(4).enumerated() { input[i] = b }
+        }
         withUnsafeBytes(of: dataSize.littleEndian) {            // keyInfo.dataSize @28（小端）
             for (i, b) in $0.prefix(4).enumerated() { input[28 + i] = b }
         }
@@ -335,10 +351,7 @@ extension SystemInfoService {
                     outPtr.baseAddress!, &outSize)
             }
         }
-        guard kr == KERN_SUCCESS else {
-            print("SMC_KR_DEBUG: op=\(op) kr=\(kr)")
-            return nil
-        }
+        guard kr == KERN_SUCCESS else { return nil }
         func leU32(_ offset: Int) -> UInt32 {
             UInt32(output[offset]) | UInt32(output[offset + 1]) << 8
                 | UInt32(output[offset + 2]) << 16 | UInt32(output[offset + 3]) << 24
@@ -356,30 +369,14 @@ extension SystemInfoService {
             | (UInt32(chars[2]) << 8) | UInt32(chars[3])
         // ① keyinfo（op=9）
         let info = smcCall(key: keyUint, op: 9, dataSize: 0, connect: connect)
-        guard let info else {
-            print("SMC_DEBUG: keyinfo call failed for \(key)")
-            return nil
-        }
-        guard info.result == 0 else {
-            print("SMC_DEBUG: keyinfo result=\(info.result) dSize=\(info.dataSize) dType=\(String(info.dataType, radix: 16)) bytes=\(info.bytes.prefix(6))")
-            return nil
-        }
+        guard let info, info.result == 0 else { return nil }   // result≠0：键不存在等，优雅降级
         let dataSize = min(info.dataSize, 32)
-        guard dataSize > 0 else {
-            print("SMC_DEBUG: keyinfo dataSize=0 for \(key)")
-            return nil
-        }
+        guard dataSize > 0 else { return nil }
         // ② read（op=5，按真实 dataSize）
         let read = smcCall(key: keyUint, op: 5, dataSize: dataSize, connect: connect)
-        guard let read else {
-            print("SMC_DEBUG: read call failed for \(key)")
-            return nil
-        }
-        guard read.result == 0 else {
-            print("SMC_DEBUG: read result=\(read.result) dSize=\(read.dataSize) bytes=\(read.bytes.prefix(6))")
-            return nil
-        }
-        return (dataSize, read.dataType, Array(read.bytes.prefix(Int(dataSize))))
+        guard let read, read.result == 0 else { return nil }
+        // dataType 取 keyinfo 阶段输出（op=5 输出不含 dataType）
+        return (dataSize, info.dataType, Array(read.bytes.prefix(Int(dataSize))))
     }
 
     /// SMC 类型码 → ASCII（如 'fpe2'/'ui16'/'sp78'）。

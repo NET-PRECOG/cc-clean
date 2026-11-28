@@ -8,7 +8,7 @@ extension Notification.Name {
     static let openSmartScan = Notification.Name("app.cclean.openSmartScan")
 }
 
-/// 状态栏面板（iStat 风格深色仪表盘，9 卡片布局，宽 540 无滚动）：
+/// 状态栏面板（iStat 风格透明玻璃仪表盘，9 卡片布局，宽 445 无滚动）：
 /// 卡1 设备信息（含开机时长）｜卡2 系统信息｜卡2/3 CPU·GPU｜卡4/5 RAM·磁盘｜卡6/7 网速·风扇｜卡8 电量｜卡9 操作条。
 struct StatusPanelView: View {
     @Environment(\.openWindow) private var openWindow
@@ -25,8 +25,10 @@ struct StatusPanelView: View {
                          height: metricCardHeight) {
                     subText(model.chipBrand + (model.cpuCores > 0 ? " · \(model.cpuCores)核" : ""))
                 }                    // 卡 2
+                // GPU 占用：GPUUsageSampler 经 libIOReport GPUPH 状态驻留差分（macOS 26 无公开 API，逆向实现）
+                // 首次采样无差分基线为 nil → 显示 "--"，约 2 秒后出值
                 ringCard(icon: "bolt.horizontal.circle", title: "GPU",
-                         fraction: nil, ringColor: Color(hex: "BF5AF2"),
+                         fraction: model.gpuFraction, ringColor: Color(hex: "BF5AF2"),
                          height: metricCardHeight) {
                     subText(model.chipBrand + (model.gpuCores != nil ? " · \(model.gpuCores!)核" : ""))
                 }                    // 卡 3
@@ -49,7 +51,7 @@ struct StatusPanelView: View {
                         if model.ipText != "--" {
                             Text(model.ipText)
                                 .font(.system(size: 11))
-                                .foregroundStyle(Color(hex: "9A9A9E"))
+                                .foregroundStyle(Color.white)
                         }
                         HStack(spacing: 10) {
                             rateItem("↑", model.monitor.networkRxText, color: Color(hex: "FFD60A"))
@@ -57,17 +59,21 @@ struct StatusPanelView: View {
                         }
                     }
                 }                    // 卡 6
-                panelCard(icon: "fan", title: "风扇", height: metricCardHeight) {
+                panelCard(icon: "fan", title: "风扇 RPM", height: metricCardHeight) {
                     if model.fanReadings.isEmpty {
                         subText("-")
                     } else {
-                        VStack(alignment: .leading, spacing: 5) {
+                        // 单行左右对齐：L xxx … R xxx
+                        HStack(spacing: 8) {
                             ForEach(model.fanReadings, id: \.index) { fan in
-                                HStack(spacing: 6) {
-                                    Image(systemName: "fan")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(Color(hex: "9A9A9E"))
-                                    Text("\(Self.fanLabel(fan)) \(Int(fan.rpm)) RPM")
+                                if fan.index > 0 {
+                                    Spacer(minLength: 0)
+                                }
+                                HStack(spacing: 4) {
+                                    Text(fan.index == 0 ? "L" : (fan.index == 1 ? "R" : "F\(fan.index)"))
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(Color(hex: "FF9F0A"))
+                                    Text("\(Int(fan.rpm))")
                                         .font(.system(size: 12, weight: .medium))
                                         .foregroundStyle(.white)
                                         .monospacedDigit()
@@ -76,53 +82,34 @@ struct StatusPanelView: View {
                         }
                     }
                 }                    // 卡 7
+
             }
             batteryCard              // 卡 8
             actionBar                // 卡 9
         }
         .padding(12)
-        // 宽度增加 1/2（360→540），VStack 固有高度完全展示无滚动条（MenuBarExtra 按内容自适应）
-        .frame(width: 540)
-        .background(Color(hex: "0A0A0A"))
+        // 宽度缩小 1/6（540→450）再缩 5pt（445）；面板窗口全透明由 StatusPanelWindowController
+        // 的 NSPanel（backgroundColor = .clear）负责——CleanUp 同款，仅卡片浮层
+        .frame(width: 445)
+        .preferredColorScheme(.dark)   // 与主窗口统一：材质/系统文字在暗色下自动白系
         .task {
             await model.start()
-            // 面板窗口完成布局后水平居中于状态栏图标正下方
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { repositionPanel() }
         }
-        .onDisappear { model.stop() }
+        // 面板显示/隐藏 → 启停采样轮询（NSPanel orderOut 不触发 onDisappear，经通知管理）
+        .onReceive(NotificationCenter.default.publisher(for: .statusPanelVisibilityChanged)) { note in
+            let visible = (note.userInfo?["visible"] as? Bool) ?? false
+            if visible {
+                Task { await model.start() }
+            } else {
+                model.stop()
+            }
+        }
     }
 
     /// 卡 2-7 统一高度（对齐内容最高项：环形卡 ≈106pt）。
     private let metricCardHeight: CGFloat = 110
 
-    /// 面板位置调整：SwiftUI MenuBarExtra 默认左对齐状态栏图标，
-    /// 手动把面板窗口水平居中到图标正下方（clamp 在图标所在屏范围内）。
-    private func repositionPanel() {
-        // 面板窗口识别：statusBar 层级 + 面板宽 540
-        // （SDK 27.2 已无 NSStatusBar.statusItems 枚举 API；
-        //   MenuBarExtra 默认把面板左缘锚定在图标下方 → 图标中心 ≈ panel.minX + 12）
-        guard let panel = NSApp.windows.first(where: {
-            $0.isVisible && $0.level == .statusBar && abs($0.frame.width - 540) < 2
-        }), let screen = panel.screen ?? NSScreen.main else { return }
-        let iconCenterX = panel.frame.minX + 12
-        var origin = panel.frame.origin
-        origin.x = min(max(iconCenterX - panel.frame.width / 2, screen.frame.minX + 8),
-                       screen.frame.maxX - panel.frame.width - 8)
-        panel.setFrameOrigin(origin)
-    }
 
-    /// 风扇标签（SMC 名称 → 左/右；无名称按序号）。
-    static func fanLabel(_ fan: FanReading) -> String {
-        if let name = fan.name?.lowercased() {
-            if name.contains("left") { return "左风扇" }
-            if name.contains("right") { return "右风扇" }
-        }
-        switch fan.index {
-        case 0: return "左风扇"
-        case 1: return "右风扇"
-        default: return "风扇 \(fan.index + 1)"
-        }
-    }
 
     // MARK: - 卡 1 设备信息（含开机时长）
 
@@ -147,11 +134,11 @@ struct StatusPanelView: View {
                         Circle().fill(Color(hex: "34C759")).frame(width: 7, height: 7)
                         Text(model.healthy ? "Mac 状态良好" : "存在告警")
                             .font(.system(size: 11))
-                            .foregroundStyle(Color(hex: "9A9A9E"))
+                            .foregroundStyle(Color.white)
                     }
                     Text("\(model.osVersionText) · 已开机 \(model.uptimeText)")
                         .font(.system(size: 11))
-                        .foregroundStyle(Color(hex: "9A9A9E"))
+                        .foregroundStyle(Color.white)
                 }
                 Spacer()
             }
@@ -171,7 +158,7 @@ struct StatusPanelView: View {
                     if let cycles = model.batteryCycles {
                         Text("循环 \(cycles) 次")
                             .font(.system(size: 11))
-                            .foregroundStyle(Color(hex: "9A9A9E"))
+                            .foregroundStyle(Color.white)
                     }
                     if let health = model.batteryHealthPercent {
                         Text("健康度 \(Int(health))%")
@@ -180,7 +167,7 @@ struct StatusPanelView: View {
                     }
                     Text(model.batteryCharging ? "充电中" : (model.batteryAC ? "电源供电" : "电池供电"))
                         .font(.system(size: 11))
-                        .foregroundStyle(Color(hex: "9A9A9E"))
+                        .foregroundStyle(Color.white)
                 }
                 Spacer()
             }
@@ -192,16 +179,18 @@ struct StatusPanelView: View {
     private var actionBar: some View {
         HStack(spacing: 8) {
             panelButton("打开主界面", "macwindow.on.rectangle") {
-                openWindow(id: "main")
                 NSApp.activate(ignoringOtherApps: true)
+                NotificationCenter.default.post(name: .statusPanelOpenMain, object: nil)
+                StatusPanelWindowController.shared.hide()
             }
+
             VStack(spacing: 1) {
                 Text(model.appVersion)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white)
                 Text(model.hasUpdate ? "有可用更新" : "已是最新")
                     .font(.system(size: 9))
-                    .foregroundStyle(model.hasUpdate ? Color(hex: "FFD60A") : Color(hex: "9A9A9E"))
+                    .foregroundStyle(model.hasUpdate ? Color(hex: "FFD60A") : Color.white)
             }
             .frame(maxWidth: .infinity)
             panelButton("退出", "power") {
@@ -227,23 +216,34 @@ struct StatusPanelView: View {
                 HStack(spacing: 8) {
                     Image(systemName: icon)
                         .font(.system(size: 12))
-                        .foregroundStyle(Color(hex: "9A9A9E"))
+                        .foregroundStyle(Color.white)
                     Text(title)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
                 }
+                // 固定高度时内容区拉伸填满剩余空间，内容在其中垂直居中（标题保持左上）
                 content()
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: height == nil ? nil : .infinity,
+                        alignment: .leading
+                    )
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: height, alignment: .topLeading)
+        .frame(height: height, alignment: .topLeading)   // 标题贴左上
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(hex: "1C1C1E"))
+                .fill(.ultraThinMaterial)                     // 真毛玻璃：模糊桌面，防止壁纸干扰文字
+                .overlay(
+                    // 暗 tint 必须同为圆角形状——纯色 overlay 会露出直角边
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.black.opacity(0.20))
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color(hex: "3A3A3C"), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)   // 玻璃边高光
                 )
         )
     }
@@ -270,7 +270,7 @@ struct StatusPanelView: View {
     private func subText(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 11))
-            .foregroundStyle(Color(hex: "9A9A9E"))
+            .foregroundStyle(Color.white)
             .lineLimit(2)
             .multilineTextAlignment(.leading)
     }
@@ -300,7 +300,11 @@ struct StatusPanelView: View {
             .frame(height: 32)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color(hex: "2C2C2E"))
+                    .fill(.ultraThinMaterial)                 // 玻璃按钮：与卡片一致毛玻璃
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                    )
             )
             .contentShape(Rectangle())
         }
@@ -312,10 +316,10 @@ struct StatusPanelView: View {
         HStack(spacing: 5) {
             Image(systemName: icon)
                 .font(.system(size: 11))
-                .foregroundStyle(Color(hex: "9A9A9E"))
+                .foregroundStyle(Color.white)
             Text(label)
                 .font(.system(size: 11))
-                .foregroundStyle(Color(hex: "9A9A9E"))
+                .foregroundStyle(Color.white)
             Text(value)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white)
@@ -326,8 +330,7 @@ struct StatusPanelView: View {
 }
 
 /// 环形进度圈（截图规格：彩色圆环 + 中心百分比）。
-struct RingGauge: View {
-    let fraction: Double?
+struct RingGauge: View {    let fraction: Double?
     let color: Color
     var label: String? = nil
     var size: CGFloat = 52
@@ -375,6 +378,7 @@ final class StatusPanelViewModel {
     private(set) var cpuFraction: Double = 0
     private(set) var ramFraction: Double = 0
     private(set) var ramTotalBytes: UInt64 = 0
+    private(set) var gpuFraction: Double?
     private(set) var diskFraction: Double = 0
     private(set) var diskFreeText = "--"
     private(set) var diskTotalText = "--"
@@ -451,13 +455,15 @@ final class StatusPanelViewModel {
         }
     }
 
-    /// 动态指标刷新（CPU/RAM 占用、磁盘、风扇、电池）。
+    /// 动态指标刷新（CPU/RAM/GPU 占用、磁盘、风扇、电池）。
     private func refreshDynamic() async {
         // CPU / RAM 占用（E1 采样，MonitorViewModel 数值属性）
         cpuFraction = monitor.cpuFraction
         if ramTotalBytes > 0 {
             ramFraction = max(min(monitor.memoryUsedBytes / Double(ramTotalBytes), 1), 0)
         }
+        // GPU 占用（libIOReport GPUPH 状态驻留差分；首次无基线为 nil → 显示 "--"）
+        gpuFraction = GPUUsageSampler.shared.sample()
         // 磁盘
         if let values = try? URL(fileURLWithPath: "/").resourceValues(
             forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityKey]) {
