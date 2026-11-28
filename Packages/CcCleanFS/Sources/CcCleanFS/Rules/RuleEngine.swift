@@ -38,16 +38,21 @@ public actor RuleEngine {
     }
 
     /// 评估指定范围内的规则，返回命中（按总体积降序）。
+    /// 规则间无依赖，TaskGroup 并行评估（吞吐受磁盘 IO 而非串行排队限制）。
     public func evaluate(_ context: RuleContext) async -> [RuleHit] {
         let scoped = rules.filter { $0.scope == context.scope }
-        var hits: [RuleHit] = []
-        for rule in scoped {
-            // requiresRoot 未授权由 CapabilityGate 过滤（调用方侧）；引擎仅评估
-            let hit = await evaluateRule(rule, context: context)
-            hits.append(hit)
+        let hits = await withTaskGroup(of: RuleHit.self) { group in
+            for rule in scoped {
+                // requiresRoot 未授权由 CapabilityGate 过滤（调用方侧）；引擎仅评估
+                group.addTask { await self.evaluateRule(rule, context: context) }
+            }
+            var collected: [RuleHit] = []
+            for await hit in group {
+                collected.append(hit)
+            }
+            return collected
         }
-        hits.sort { $0.totalBytes > $1.totalBytes }
-        return hits
+        return hits.sorted { $0.totalBytes > $1.totalBytes }
     }
 
     /// 单规则试运行（供 UI 预览与单测）。
@@ -58,7 +63,8 @@ public actor RuleEngine {
 
     // MARK: - 单规则评估
 
-    private func evaluateRule(_ rule: RuleFile, context: RuleContext) async -> RuleHit {
+    /// nonisolated：纯读规则 + 本地遍历，无共享可变状态，供并行 TaskGroup 并发执行。
+    nonisolated private func evaluateRule(_ rule: RuleFile, context: RuleContext) async -> RuleHit {
         let deadline = ContinuousClock.now + context.budget
         var roots = RulePathExpander.expandRoots(rule.match.roots, home: home)
         roots.append(contentsOf: RulePathExpander.expandRoots(context.extraRoots, home: home)
@@ -141,7 +147,7 @@ public actor RuleEngine {
     }
 
     /// 单文件匹配（glob 名称 / 扩展名 / 大小 / 时间 / 正则）。
-    private func matchFile(
+    nonisolated private func matchFile(
         _ path: String, name: String, rule: RuleFile,
         regex: NSRegularExpression?, cutoff: Date?
     ) -> Bool {

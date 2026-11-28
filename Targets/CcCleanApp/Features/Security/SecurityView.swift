@@ -146,7 +146,7 @@ struct SecurityView: View {
                         .labelsHidden()
                         VStack(alignment: .leading) {
                             Text(target.name).font(.headline)
-                            Text("\(target.path) · \(target.itemCount) 项")
+                            Text("\(target.path) · \(target.itemCount ?? 0) 项")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }

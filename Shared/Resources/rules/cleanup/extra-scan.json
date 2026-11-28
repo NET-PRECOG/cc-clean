@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "cleanup.xcode.derived-data",
+      "module": "G2",
+      "scope": "cleanup",
+      "title": "Xcode 垃圾",
+      "explain": "Xcode 编译产物、模拟器缓存、设备支持文件与历史归档；删除后会在下次构建时自动重建",
+      "risk": "low",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": [
+          "~/Library/Developer/Xcode/DerivedData",
+          "~/Library/Developer/Xcode/iOS DeviceSupport",
+          "~/Library/Developer/Xcode/Archives",
+          "~/Library/Developer/CoreSimulator/Caches",
+          "~/Library/Developer/CoreSimulator/Cache"
+        ],
+        "maxDepth": 1
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.system.sys-cache",
+      "module": "G2",
+      "scope": "cleanup",
+      "title": "系统缓存",
+      "explain": "系统级缓存目录（/Library/Caches）；部分子项无用户权限时将作为失败项单独提示",
+      "risk": "medium",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["/Library/Caches"],
+        "maxDepth": 1
+      },
+      "schemaVersion": 1
+    },
+    {
+      "id": "cleanup.misc.downloads",
+      "module": "G2",
+      "scope": "cleanup",
+      "title": "下载",
+      "explain": "下载文件夹中 30 天未使用的文件；移入废纸篓可撤销恢复（dmg/pkg 由磁盘镜像分类单独统计）",
+      "risk": "medium",
+      "defaultSelected": true,
+      "requiresRoot": false,
+      "action": { "kind": "trash" },
+      "match": {
+        "roots": ["~/Downloads"],
+        "maxDepth": 1,
+        "olderThanDays": 30,
+        "excludePatterns": ["*.dmg", "*.pkg", "*.db", "*.sqlite", "*.sqlite-wal", "*.sqlite-shm"]
+      },
+      "schemaVersion": 1
+    }
+  ]
+}

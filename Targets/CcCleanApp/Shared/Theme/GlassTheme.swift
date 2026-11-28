@@ -48,9 +48,11 @@ struct GlassWindowSetup: ViewModifier {
         NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main
         ) { note in
-            guard let window = note.object as? NSWindow,
-                  !(window is NSPanel), window.frame.width > 600 else { return }
-            makeTransparent(window)
+            let window = note.object as? NSWindow
+            MainActor.assumeIsolated {
+                guard let window, !(window is NSPanel), window.frame.width > 600 else { return }
+                makeTransparent(window)
+            }
         }
     }
 
@@ -64,6 +66,17 @@ struct GlassWindowSetup: ViewModifier {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.appearance = NSAppearance(named: .darkAqua)
+        restoreWindowChrome(window)
+    }
+
+    /// 恢复系统标准窗口按钮（交通灯：关闭/最小化/全屏）可见性。
+    /// 主窗口 orderOut 复用 + accessory↔regular 激活策略切换后，macOS 26 可能停止
+    /// 渲染窗口 chrome——didBecomeKey / 主窗口唤起路径统一调用；
+    /// isHidden = false 幂等，正常场景无副作用。
+    static func restoreWindowChrome(_ window: NSWindow) {
+        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+            window.standardWindowButton(button)?.isHidden = false
+        }
     }
 }
 extension View {

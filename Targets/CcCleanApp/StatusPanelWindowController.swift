@@ -23,9 +23,16 @@ final class StatusPanelWindowController {
         guard !isSetup else { return }
         isSetup = true
 
-        // 状态栏图标
+        // 状态栏图标：与 App 图标同源（源图中心 C+扫帚，菜单栏小尺寸彩色版）
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "gauge", accessibilityDescription: "CcClean")
+        if let url = Bundle.main.url(forResource: "StatusBarIcon", withExtension: "png"),
+           var icon = NSImage(contentsOf: url) {
+            icon.size = NSSize(width: 22, height: 22)   // 44×44 @2x 源
+            icon.isTemplate = false                     // 保留品牌蓝青色
+            item.button?.image = icon
+        } else {
+            item.button?.image = NSImage(systemSymbolName: "gauge", accessibilityDescription: "CcClean")
+        }
         item.button?.target = self
         item.button?.action = #selector(togglePanel)
         statusItem = item
@@ -78,21 +85,8 @@ final class StatusPanelWindowController {
             userInfo: ["visible": false])
     }
 
-    /// 打开主界面（面板操作条按钮经通知调用）：
-    /// 主窗口可见则激活；已关闭（WindowGroup 窗口销毁，AppKit 无法重建）则经 URL scheme
-    /// 让 SwiftUI 重建主窗口（cclean://main 已在 Info.plist CFBundleURLTypes 注册）。
-    func activateMainWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-        let main = NSApp.windows.first { window in
-            !(window is NSPanel) && window.isVisible
-                && window.frame.width > 600          // 排除状态栏面板/小窗口/设置窗口
-        }
-        if let main {
-            main.makeKeyAndOrderFront(nil)
-        } else if let url = URL(string: "cclean://main") {
-            NSWorkspace.shared.open(url)
-        }
-    }
+    /// 打开主界面由 AppDelegate.activateMainWindow 统一实现（单窗口保证 +
+    /// accessory/regular Dock 图标切换），控制器不再重复维护一份。
 
     /// 定位到状态栏图标正下方水平居中（clamp 在图标所在屏范围内）。
     private func positionBelowStatusItem(panel: NSPanel, button: NSStatusBarButton?) {
@@ -130,6 +124,14 @@ final class StatusPanelWindowController {
     private func hideIfOutsideClick(window: NSWindow? = nil) {
         guard let panel, panel.isVisible else { return }
         if let w = window, w === panel { return }                       // 点击面板内部
+        // 点击状态栏图标：交给 togglePanel 开关（否则监视器先 hide、action 又 show，
+        // hide→show 竞争导致面板无法通过再次点击图标关闭）。
+        // event.window 对状态栏系统窗口可能为 nil（不可靠），必须用鼠标位置兜底：
+        // 只要鼠标落在状态栏图标 rect 内就视为 toggle 点击。
+        if let w = window, w === statusItem?.button?.window { return }
+        if let buttonWindow = statusItem?.button?.window {
+            if buttonWindow.frame.contains(NSEvent.mouseLocation) { return }
+        }
         if panel.frame.contains(NSEvent.mouseLocation) { return }       // 鼠标仍在面板范围
         hide()
     }

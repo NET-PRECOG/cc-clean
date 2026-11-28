@@ -73,7 +73,7 @@ public struct ProcessRunner: Sendable {
 
     /// 执行命令。启动失败抛错；进程级失败（非零退出/超时/取消）全部通过返回值表达。
     public func run(_ spec: ProcessSpec) async throws -> ProcessResult {
-        let running = try RunningProcess(spec: spec)
+        let running = RunningProcess(spec: spec)
         try running.start()
 
         // 与超时 watchdog 竞速；先完成者决定流程。

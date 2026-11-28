@@ -64,8 +64,7 @@ struct HomeView: View {
             .navigationDestination(for: String.self) { key in
                 if key == "一键清理" {
                     SmartScanView()
-                } else if key == "去清理系统垃圾" {
-                    JunkPreviewView()
+
                 } else if let match = cards.first(where: { $0.title == key }) {
                     match.destination
                 }
@@ -74,15 +73,10 @@ struct HomeView: View {
             .onReceive(NotificationCenter.default.publisher(for: .openSmartScan)) { _ in
                 path.append("一键清理")
             }
-            // 面板"打开主界面"（cclean://main）：主窗口已关闭时由 SwiftUI 重建并激活
-            .onOpenURL { _ in
-                NSApp.activate(ignoringOtherApps: true)
-            }
             .task { await refreshDisk() }
         }
         .frame(minWidth: 900, minHeight: 620)
-        .glassContainerBackground()   // CleanUp 同款：窗口容器底清空（macOS 15+）
-        // CleanUp 同款玻璃窗口：毛玻璃底 + 窗口透明 + 强制暗色（系统文字自动白系）
+        // CleanUp 同款玻璃窗口：毛玻璃底（主窗口由 AppKit 托管，此为持续透明兜底）
         .background(GlassWindowBackground())
         .modifier(GlassWindowSetup())
         .preferredColorScheme(.dark)

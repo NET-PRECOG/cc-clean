@@ -253,7 +253,7 @@ public actor ResidueScanner {
                     path: path, layer: layer, confidence: confidence,
                     risk: risk,
                     reason: "残留模板命中（\(template.id)）",
-                    requiresRoot: template.requiresRoot ?? false,
+                    requiresRoot: template.requiresRoot,
                     undoable: layer == .l3System ? false : true,
                     bytes: Self.size(of: path)
                 ))

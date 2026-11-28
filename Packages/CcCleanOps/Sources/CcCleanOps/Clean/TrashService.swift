@@ -31,6 +31,21 @@ public struct TrashService: Sendable {
         return (succeeded, failed)
     }
 
+    /// 清空废纸篓指定条目（永久删除，不可撤销；条目已在废纸篓内，trashItem 无意义）。
+    public func empty(paths: [String]) async -> (succeeded: [String], failed: [String: String]) {
+        var succeeded: [String] = []
+        var failed: [String: String] = [:]
+        for path in paths {
+            do {
+                try FileManager.default.removeItem(atPath: path)
+                succeeded.append(path)
+            } catch {
+                failed[path] = TrashService.describe(error)
+            }
+        }
+        return (succeeded, failed)
+    }
+
     /// 从废纸篓恢复到原路径（撤销，基线 6.3 要点 4：原路径被占用则加序号后缀不覆盖）。
     public func restore(trashURL: URL, originalPath: String) async -> Result<String, TrashRestoreError> {
         let original = URL(fileURLWithPath: originalPath)

@@ -179,7 +179,7 @@ struct StatusPanelView: View {
     private var actionBar: some View {
         HStack(spacing: 8) {
             panelButton("打开主界面", "macwindow.on.rectangle") {
-                NSApp.activate(ignoringOtherApps: true)
+                NSApp.activate()
                 NotificationCenter.default.post(name: .statusPanelOpenMain, object: nil)
                 StatusPanelWindowController.shared.hide()
             }
@@ -194,7 +194,9 @@ struct StatusPanelView: View {
             }
             .frame(maxWidth: .infinity)
             panelButton("退出", "power") {
-                // 真正退出软件（Dock/Cmd+Q 的退出被拦截为隐藏主窗口，面板常驻）
+                // 真正退出软件（Dock/Cmd+Q 的退出被拦截为隐藏主窗口，面板常驻）。
+                // 先收起面板给出即时反馈，再触发真退出。
+                StatusPanelWindowController.shared.hide()
                 (NSApp.delegate as? AppDelegate)?.requestRealExit()
             }
         }

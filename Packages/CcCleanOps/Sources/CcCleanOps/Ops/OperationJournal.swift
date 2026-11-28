@@ -282,6 +282,18 @@ public actor OperationJournal {
                 }
             }
 
+        case .emptyTrash(let paths):
+            // 清空废纸篓条目（永久删除，不可撤销）：删除唯一出口仍为 TrashService
+            for path in paths {
+                if let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+                   let size = (attrs[.size] as? NSNumber)?.int64Value {
+                    outcome.bytesReclaimed += size
+                }
+            }
+            let result = await trashService.empty(paths: paths)
+            outcome.succeeded = result.succeeded
+            outcome.failed = result.failed
+
         case .backupAndRemove, .bootstrap, .thinBinaries:
             // backupAndRemove/bootstrap/thinBinaries 在对应需求版本（C8/H3/G4）接入 Helper
             for path in op.affectedPaths {

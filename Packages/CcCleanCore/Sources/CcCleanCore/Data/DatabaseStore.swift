@@ -29,7 +29,7 @@ public struct DatabaseStore: Sendable {
 
     private static func openAndMigrate(url: URL, logger: Logger) throws -> DatabaseStore {
         let pool = try DatabasePool(path: url.path)
-        var migrator = migrator()
+        let migrator = migrator()
         try migrator.migrate(pool)
         logger.info("database ready: \(url.path)")
         return DatabaseStore(pool: pool, fileURL: url)

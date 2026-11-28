@@ -1,289 +1,403 @@
 import SwiftUI
+import AppKit
 import CcCleanCore
 import CcCleanFS
 
-/// 智能扫描页（首页主按钮目标）：一键并行扫描全部可清理类别并汇总展示，
-/// 各类别可跳转对应功能页处理。全程只读，不执行删除。
+/// 一键清理页（CleanUp 同款布局）：左侧分类侧栏 + 右侧文件清单逐条罗列勾选 +
+/// 底部圆形清理按钮；扫描中 / 失败以覆盖层呈现，无三级页面。
+/// 路径级勾选与一键清理共用 SmartScanViewModel（OperationJournal trash 通道，可撤销）。
 struct SmartScanView: View {
     @State private var model = SmartScanViewModel()
-    @Environment(\.colorScheme) private var colorScheme
+    @State private var selectedCategoryID: String?
+    /// 侧栏分类排序与主区文件排序相互独立。
+    @State private var categorySortDescending = true
+    @State private var fileSortDescending = true
+
+    private var category: ReviewCategory? {
+        model.categories.first { $0.id == selectedCategoryID } ?? model.categories.first
+    }
+
+    /// 侧栏分类按大小排序（独立于文件排序）。
+    private var sortedCategories: [ReviewCategory] {
+        categorySortDescending
+            ? model.categories.sorted { $0.bytes > $1.bytes }
+            : model.categories.sorted { $0.bytes < $1.bytes }
+    }
+
+    /// 当前分类文件按大小排序。
+    private var sortedItems: [ReviewItem] {
+        guard let category else { return [] }
+        return fileSortDescending
+            ? category.items.sorted { ($0.size ?? -1) > ($1.size ?? -1) }
+            : category.items.sorted { ($0.size ?? -1) < ($1.size ?? -1) }
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                switch model.phase {
-                case .idle:
-                    idlePrompt
-                case .scanning(let step):
-                    scanningCard(step: step)
-                case .failed(let message):
-                    failedCard(message: message)
-                case .done:
-                    summaryCards
-                }
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                sidebar
+                Divider().overlay(Color.white.opacity(0.10))
+                content
             }
-            .padding(24)
+            bottomBar
         }
-        .background(ambientBackground)
-        .navigationTitle("智能扫描")
+        .background(AmbientBackground())
+        .navigationTitle("一键清理")
+        .overlay { stateOverlay }
         .task {
-            if case .idle = model.phase { await model.startScan() }
+            // 每次进入页面都重新扫描（CleanUp 智能扫描同逻辑）
+            await model.startScan()
         }
     }
 
-    // MARK: - 状态视图
+    // MARK: - 覆盖层（idle / 扫描中 / 失败）
 
-    /// 待扫描提示。
-    private var idlePrompt: some View {
-        VStack(spacing: 16) {
-            AccentBadge(systemImage: "sparkle.magnifyingglass", accent: .scan, size: 72)
-            Text("点击下方按钮开始扫描").foregroundStyle(.secondary)
-            Button("开始扫描") { Task { await model.startScan() } }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 24)
-                .frame(height: 40)
-                .background(Capsule().fill(CCleanTheme.Accent.scan.gradient))
-                .foregroundStyle(.white)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.top, 80)
-    }
-
-    /// 扫描进行中（步骤文本 + 进度动画）。
-    private func scanningCard(step: String) -> some View {
-        VStack(spacing: 16) {
-            AccentBadge(systemImage: "sparkle.magnifyingglass", accent: .scan, size: 72)
-                .symbolEffect(.pulse)
-            Text(step).font(.system(size: 14, weight: .medium))
-            ProgressView()
-                .controlSize(.large)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(40)
-        .background(cardBackground)
-    }
-
-    /// 失败卡。
-    private func failedCard(message: String) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(.yellow)
-            Text(message).foregroundStyle(.secondary)
-            Button("重新扫描") { Task { await model.startScan() } }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 20)
-                .frame(height: 36)
-                .background(Capsule().fill(CCleanTheme.Accent.scan.gradient))
-                .foregroundStyle(.white)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(40)
-        .background(cardBackground)
-    }
-
-    /// 结果汇总（总计卡 + 分类卡）。
     @ViewBuilder
-    private var summaryCards: some View {
-        // 总计卡（大字可释放量——CleanUp 扫描完成页视觉锚点）
-        VStack(spacing: 8) {
-            Text(CCleanTheme.formatBytes(model.totalBytes))
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundStyle(CCleanTheme.Accent.scan.bottom)
-            Text("可释放空间")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-            Text("扫描用时 \(String(format: "%.1f", model.elapsed)) 秒")
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+    private var stateOverlay: some View {
+        switch model.phase {
+        case .idle, .scanning:
+            ZStack {
+                Color(nsColor: .windowBackgroundColor).opacity(0.85).ignoresSafeArea()
+                LoadingOverlay(
+                    isLoading: true,
+                    title: model.phase == .idle ? "准备扫描…" : "正在扫描",
+                    systemImage: "sparkle.magnifyingglass",
+                    accent: .scan
+                )
+            }
+        case .failed(let message):
+            failedOverlay(message: message)
+        case .done:
+            EmptyView()
         }
-        .frame(maxWidth: .infinity)
-        .padding(32)
-        .background(cardBackground)
+    }
 
-        // 分类卡：系统垃圾（跳系统垃圾页处理）
-        categoryCard(
-            accent: .scan, icon: "trash.fill",
-            title: "系统垃圾",
-            count: model.junkItemCount,
-            bytes: model.junkBytes,
-            trailing: {
-                NavigationLink(value: "去清理系统垃圾") {
-                    Text("去清理")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .frame(height: 30)
-                        .background(Capsule().fill(CCleanTheme.Accent.scan.gradient))
+    /// 失败覆盖卡（重新扫描入口）。
+    private func failedOverlay(message: String) -> some View {
+        ZStack {
+            Color(nsColor: .windowBackgroundColor).opacity(0.9).ignoresSafeArea()
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.yellow)
+                Text(message).foregroundStyle(.secondary)
+                Button("重新扫描") { Task { await model.startScan() } }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 20)
+                    .frame(height: 36)
+                    .background(Capsule().fill(CCleanTheme.Accent.scan.gradient))
+                    .foregroundStyle(.white)
+            }
+            .padding(40)
+            .background(GlassCardBackground())
+        }
+    }
+
+    // MARK: - 侧栏（分类列表）
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Button {
+                    model.toggleAllSelection()
+                } label: {
+                    Text(model.allSelected ? "取消全选" : "全选")
+                        .font(.system(size: 11, weight: .medium))
+                        .padding(.horizontal, 10)
+                        .frame(height: 24)
+                        .background(Capsule().stroke(Color.white.opacity(0.25), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
-            })
-        // 分类卡：孤儿文件（内嵌前 8 条路径预览）
-        categoryCard(
-            accent: .fileTree, icon: "folder.badge.questionmark",
-            title: "孤儿文件（应用已卸载的残留）",
-            count: model.orphans.count,
-            bytes: model.orphanBytes,
-            trailing: {})
-        if !model.orphans.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(model.orphans.prefix(8)) { finding in
-                    Text(finding.path)
+                .disabled(model.categories.isEmpty)
+
+                Spacer()
+                categorySortMenu
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(sortedCategories) { cat in
+                        sidebarRow(cat)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 12)
+            }
+        }
+        .frame(width: 230)
+    }
+
+    /// 侧栏排序控件（分类按大小 升/降序，独立于文件排序）。
+    private var categorySortMenu: some View {
+        Menu {
+            Button("从大到小") { categorySortDescending = true }
+            Button("从小到大") { categorySortDescending = false }
+        } label: {
+            Label(categorySortDescending ? "从大到小" : "从小到大",
+                  systemImage: "arrow.up.arrow.down")
+                .font(.system(size: 11))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    /// 主区排序控件（文件按大小 升/降序，独立于分类排序）。
+    private var fileSortMenu: some View {
+        Menu {
+            Button("从大到小") { fileSortDescending = true }
+            Button("从小到大") { fileSortDescending = false }
+        } label: {
+            Label(fileSortDescending ? "从大到小" : "从小到大",
+                  systemImage: "arrow.up.arrow.down")
+                .font(.system(size: 11))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    /// 分类徽章配色（按展示分组语义区分）。
+    private func accent(for cat: ReviewCategory) -> CCleanTheme.Accent {
+        switch cat.id {
+        case ReviewCategory.residueID: .fileTree
+        case "userLogs": .largeFile
+        case "crashReports": .privacy
+        case "diskImages": .disk
+        case "xcode": .devTools
+        case "sysCache": .app
+        case "downloads": .duplicate
+        case "trash": .inventory
+        case "brokenLogins": .loginItem
+        case "mail": .loginItem
+        case "iosBackup": .app
+        case "sysTmp": .devTools
+        default: .scan
+        }
+    }
+
+    /// 侧栏分类行：勾选圈（独立切换）+ 分类卡（点击查看文件清单）；锁定分类显示锁图标。
+    private func sidebarRow(_ cat: ReviewCategory) -> some View {
+        let selected = cat.id == category?.id
+        let checked = model.categoryFullySelected(cat.id)
+        return HStack(spacing: 10) {
+            if cat.locked {
+                Image(systemName: "lock.circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.tertiary)
+            } else {
+                Button {
+                    model.toggleCategory(cat.id)
+                } label: {
+                    Image(systemName: checked ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(checked ? Color.green : Color.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            Button {
+                selectedCategoryID = cat.id
+            } label: {
+                HStack(spacing: 10) {
+                    AccentBadge(systemImage: cat.icon, accent: accent(for: cat), size: 24)
+                    Text(cat.title)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(CCleanTheme.formatBytes(cat.bytes))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                        .monospacedDigit()
                 }
-                if model.orphans.count > 8 {
-                    Text("… 共 \(model.orphans.count) 项")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(selected ? Color.white.opacity(0.10) : Color.clear)
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - 主区（文件清单）
+
+    @ViewBuilder
+    private var content: some View {
+        if let category {
+            VStack(spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(category.title)
+                            .font(.system(size: 18, weight: .bold))
+                        Text(category.subtitle)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    fileSortMenu
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 10)
+
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(sortedItems) { item in
+                            fileRow(item, locked: category.locked)
+                        }
+                        if sortedItems.isEmpty {
+                            Text(category.locked ? "该分类下无可自动清理项" : "该分类下暂无可清理项")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 40)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 16)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(cardBackground)
+            .frame(maxWidth: .infinity)
+            .id(category.id)
+        } else {
+            ContentUnavailableView {
+                Label("空间很干净", systemImage: "checkmark.seal.fill")
+            } description: {
+                Text("未发现可清理的垃圾文件")
+            } actions: {
+                Button("重新扫描") { Task { await model.startScan() } }
+                    .buttonStyle(.borderedProminent)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
 
-        // 重新扫描
-        Button {
-            Task { await model.startScan() }
+
+    /// 文件行：勾选圈 + 文件图标 + 文件名/路径 + 大小右对齐（整行可点切换）；
+    /// 锁定分类（高危/需辅助程序）显示锁图标且不可勾选。
+    private func fileRow(_ item: ReviewItem, locked: Bool) -> some View {
+        let checked = model.selectedPaths.contains(item.path)
+        return HStack(spacing: 10) {
+            if locked {
+                Image(systemName: "lock.circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.tertiary)
+            } else {
+                Image(systemName: checked ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 15))
+                    .foregroundStyle(checked ? Color.green : Color.secondary)
+            }
+            Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
+                .resizable()
+                .frame(width: 20, height: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text((item.path as NSString).lastPathComponent)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(item.detail ?? (item.path as NSString).deletingLastPathComponent)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer(minLength: 8)
+            Text(item.size.map { CCleanTheme.formatBytes($0) } ?? "—")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(checked ? Color.white.opacity(0.05) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { model.togglePath(item.path) }
+    }
+
+    // MARK: - 底部操作栏
+
+    private var bottomBar: some View {
+        ZStack {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("共发现")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text(CCleanTheme.formatBytes(model.totalBytes))
+                        .font(.system(size: 15, weight: .semibold))
+                        .monospacedDigit()
+                }
+                Spacer()
+                if case .finished(let succeeded, let failed, let bytes) = model.cleanState {
+                    HStack(spacing: 8) {
+                        Image(systemName: failed > 0
+                              ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                            .foregroundStyle(failed > 0 ? Color.orange : Color.green)
+                        Text(failed > 0
+                             ? "已清理 \(succeeded) 项 · 失败 \(failed) 项"
+                             : "已清理 \(succeeded) 项 · 释放 \(CCleanTheme.formatBytes(bytes))")
+                            .font(.system(size: 12, weight: .medium))
+                        Button("撤销") { Task { await model.undoLastCleanup() } }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(CCleanTheme.Accent.scan.bottom)
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                cleanButton
+                if case .finished = model.cleanState {
+                    EmptyView()
+                } else {
+                    Text(CCleanTheme.formatBytes(model.selectedBytes))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.bar)
+    }
+
+    /// 圆形清理主按钮（CleanUp 同款）。
+    private var cleanButton: some View {
+        let running = model.cleanState == .running
+        return Button {
+            Task { await model.cleanSelected() }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.clockwise")
-                Text("重新扫描")
-                    .font(.system(size: 13, weight: .semibold))
+            VStack(spacing: 2) {
+                if running {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white)
+                } else {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 17, weight: .semibold))
+                }
+                Text(running ? "清理中" : "清理")
+                    .font(.system(size: 11, weight: .semibold))
             }
             .foregroundStyle(.white)
-            .padding(.horizontal, 22)
-            .frame(height: 38)
-            .background(Capsule().fill(CCleanTheme.Accent.scan.gradient))
+            .frame(width: 56, height: 56)
+            .background(
+                Circle().fill(
+                    running || !model.canClean
+                        ? AnyShapeStyle(Color.gray.opacity(0.4))
+                        : AnyShapeStyle(CCleanTheme.Accent.scan.gradient)
+                )
+            )
+            .shadow(color: CCleanTheme.Accent.scan.bottom.opacity(0.35), radius: 10, y: 3)
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 4)
-    }
-
-    /// 分类结果卡。
-    private func categoryCard(
-        accent: CCleanTheme.Accent, icon: String,
-        title: String, count: Int, bytes: Int64,
-        @ViewBuilder trailing: () -> some View
-    ) -> some View {
-        HStack(spacing: 14) {
-            AccentBadge(systemImage: icon, accent: accent, size: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .semibold))
-                Text("\(count) 项 · \(CCleanTheme.formatBytes(bytes))")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            Spacer()
-            trailing()
-        }
-        .padding(16)
-        .background(cardBackground)
-    }
-
-    // MARK: - 复用样式
-
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: CCleanTheme.cardCornerRadius, style: .continuous)
-            .fill(.regularMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: CCleanTheme.cardCornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-            )
-    }
-
-    private var ambientBackground: some View {
-        LinearGradient(
-            colors: [Color(hex: "F5F3FF"), Color(hex: "F9FAFB")],
-            startPoint: .topLeading, endPoint: .bottomTrailing
-        )
-        .overlay {
-            Color(nsColor: .windowBackgroundColor).opacity(colorScheme == .dark ? 0.92 : 0)
-        }
-        .ignoresSafeArea()
-    }
-}
-
-/// 智能扫描 ViewModel：规则垃圾（.cleanup 范围）+ 孤儿文件（C11）两类快速只读扫描。
-@Observable
-@MainActor
-final class SmartScanViewModel {
-    enum Phase: Equatable {
-        case idle
-        case scanning(step: String)
-        case done
-        case failed(String)
-    }
-
-    private(set) var phase: Phase = .idle
-    private(set) var junkHits: [RuleHit] = []
-    private(set) var orphans: [OrphanScanner.OrphanFinding] = []
-    private(set) var elapsed: TimeInterval = 0
-
-    private let engine = RuleEngine(protected: .builtin, logger: Logger(category: .scan))
-    private let orphanScanner = OrphanScanner()
-    private var rulesLoaded = false
-
-    var junkItemCount: Int { junkHits.reduce(0) { $0 + $1.paths.count } }
-    var junkBytes: Int64 { junkHits.reduce(0) { $0 + $1.totalBytes } }
-    var orphanBytes: Int64 { orphans.reduce(0) { $0 + ($1.sizeBytes ?? 0) } }
-    var totalBytes: Int64 { junkBytes + orphanBytes }
-
-    /// 顺序扫描（垃圾 → 孤儿；孤儿扫描为同步重方法，放 detached 避免卡主线程）。
-    func startScan() async {
-        guard !isScanning else { return }
-        isScanning = true
-        let start = Date()
-        defer { isScanning = false }
-
-        do {
-            phase = .scanning(step: "加载清理规则…")
-            if !rulesLoaded {
-                try await engine.load(Self.loadBundledRules())
-                rulesLoaded = true
-            }
-
-            phase = .scanning(step: "扫描系统垃圾…")
-            junkHits = await engine.evaluate(RuleContext(scope: .cleanup, budget: .seconds(10)))
-
-            phase = .scanning(step: "扫描孤儿文件（应用已卸载的残留）…")
-            let installed = Set(
-                AppScanner.enumerateApps(under: "/Applications").map {
-                    (($0 as NSString).lastPathComponent as NSString).deletingPathExtension
-                })
-            let home = NSHomeDirectory()
-            let scanner = orphanScanner
-            orphans = await Task.detached {
-                scanner.scan(home: home, installedBundleIds: installed)
-            }.value
-
-            elapsed = Date().timeIntervalSince(start)
-            phase = .done
-        } catch {
-            phase = .failed("扫描失败：\((error as NSError).localizedDescription)")
-        }
-    }
-
-    private var isScanning = false
-
-    /// 加载内置规则文件（与 JunkPreviewViewModel 同源模式；校验失败跳过）。
-    private static func loadBundledRules() -> [RuleFile] {
-        let rulesRoot = Paths.sharedResources.appendingPathComponent("rules", isDirectory: true)
-        guard let enumerator = FileManager.default.enumerator(
-            at: rulesRoot, includingPropertiesForKeys: nil
-        ) else { return [] }
-        var rules: [RuleFile] = []
-        for case let url as URL in enumerator where url.pathExtension == "json" {
-            guard url.lastPathComponent != "zombie-launchd.json",
-                  let data = try? Data(contentsOf: url),
-                  let file = try? JSONDecoder().decode(RuleFile.self, from: data) else { continue }
-            rules.append(file)
-        }
-        return rules
+        .disabled(!model.canClean || running)
     }
 }

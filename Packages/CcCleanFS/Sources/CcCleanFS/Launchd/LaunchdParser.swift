@@ -143,7 +143,7 @@ public enum LaunchdParser {
                        $0.bundlePath == url.path
                            || $0.bundlePath.lowercased() == url.path.lowercased()
                    }) {
-                    var result = entry
+
                     return LaunchdEntry(
                         label: entry.label, plistPath: entry.plistPath, domain: entry.domain,
                         program: entry.program, args: entry.args,
@@ -162,7 +162,6 @@ public enum LaunchdParser {
             if entry.label == record.bundleId
                 || entry.label.hasPrefix(record.bundleId + ".")
                 || record.bundleId.hasPrefix(entry.label + ".") {
-                var result = entry
                 return LaunchdEntry(
                     label: entry.label, plistPath: entry.plistPath, domain: entry.domain,
                     program: entry.program, args: entry.args,
@@ -180,7 +179,6 @@ public enum LaunchdParser {
             if let record = knownBundles.first(where: {
                 $0.executableName == execName || $0.bundleName == execName
             }) {
-                var result = entry
                 return LaunchdEntry(
                     label: entry.label, plistPath: entry.plistPath, domain: entry.domain,
                     program: entry.program, args: entry.args,

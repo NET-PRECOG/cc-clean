@@ -79,7 +79,7 @@ public final class GPUUsageSampler: @unchecked Sendable {
         sub = withUnsafeMutablePointer(to: &errSlot) { errPtr in
             fnCreateSub?(nil, UnsafeRawPointer(chans), &aggPtr, 0, errPtr)
         }
-        guard let subPtr = sub, let aggP = aggPtr else { failed = true; return }
+        guard sub != nil, let aggP = aggPtr else { failed = true; return }
         agg = aggP
         ready = true
     }
@@ -90,7 +90,7 @@ public final class GPUUsageSampler: @unchecked Sendable {
         let cf = unsafeBitCast(ptr, to: CFString.self)
         var buf = [CChar](repeating: 0, count: 256)
         guard CFStringGetCString(cf, &buf, 256, Self.kUTF8Encoding) else { return nil }
-        return String(cString: buf)
+        return buf.cStringDecoded()
     }
 
     /// 采样 GPU 利用率（0~1）。首次调用（无差分基线）或链路不可用返回 nil。
@@ -99,7 +99,7 @@ public final class GPUUsageSampler: @unchecked Sendable {
               let fnCS = fnCreateSamples, let fnD = fnDelta,
               let fnSubG = fnSubGroup, let fnRes = fnStateResidency,
               let fnSC = fnStateCount, let fnSN = fnStateName,
-              let ch = channels, let ag = agg, let sb = sub,
+              channels != nil, let ag = agg, let sb = sub,
               let cur = fnCS(sb, ag, nil)
         else { return nil }
 

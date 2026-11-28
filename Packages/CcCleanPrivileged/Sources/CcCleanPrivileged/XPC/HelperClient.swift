@@ -92,7 +92,7 @@ public final class XPCHelperClient: HelperClientProtocol, @unchecked Sendable {
     public func ping() async -> Bool {
         let request = HelperRequest(journalID: "ping", action: .removeItems)
         let encoder = JSONEncoder()
-        guard let payload = try? encoder.encode(request) else { return false }
+        guard (try? encoder.encode(request)) != nil else { return false }
         return await withCheckedContinuation { continuation in
             let conn = self.currentConnection()
             let proxy = conn?.remoteObjectProxyWithErrorHandler { _ in

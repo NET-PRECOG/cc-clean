@@ -61,7 +61,7 @@ public actor SystemInfoService {
                 if getnameinfo(
                     sa, socklen_t(sa.pointee.sa_len), &hostname, socklen_t(hostname.count),
                     nil, 0, NI_NUMERICHOST) == 0 {
-                    let address = String(cString: hostname)
+                    let address = hostname.cStringDecoded()
                     let isUp = (ifa.ifa_flags & UInt32(IFF_UP)) != 0
                     if seen.insert(name).inserted {
                         results.append(NetworkInterfaceInfo(
@@ -113,7 +113,7 @@ public actor SystemInfoService {
             guard size > 0 else { return "unknown" }
             var buffer = [CChar](repeating: 0, count: size)
             sysctlbyname(name, &buffer, &size, nil, 0)
-            return String(cString: buffer)
+            return buffer.cStringDecoded()
         }
 
         var memsize: UInt64 = 0

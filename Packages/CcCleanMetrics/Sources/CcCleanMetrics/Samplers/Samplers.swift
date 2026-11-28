@@ -166,7 +166,7 @@ public final class CPUMemorySampler: MetricSampling, @unchecked Sendable {
         guard size > 0 else { return nil }
         var buffer = [CChar](repeating: 0, count: size)
         guard sysctlbyname("vm.swapusage", &buffer, &size, nil, 0) == 0 else { return nil }
-        return parseSwapUsage(String(cString: buffer))
+        return parseSwapUsage(buffer.cStringDecoded())
     }
 
     /// 解析 "Swap usage: total = 2048.0M used = 512.0M free = 1536.0M (encrypted)"。

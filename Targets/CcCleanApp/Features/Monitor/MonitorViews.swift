@@ -36,9 +36,9 @@ final class MonitorViewModel {
         )
         // E13 告警派发钩子（actor tick → MainActor 横幅，基线 6.4 notification 降级横幅）
         Task { [metricsService] in
-            await metricsService.setAlertHandler { [weak self] alert in
+            await metricsService.setAlertHandler { alert in
                 Task { @MainActor in
-                    self?.appendBanner(alert)
+                    self.appendBanner(alert)
                 }
             }
         }
@@ -155,7 +155,7 @@ extension MonitorViewModel: MetricsConsumer {
         // E3：逐核值追加历史（每核 60 点环形；首次采样无差分记录为 -1 → 曲线虚线段）
         guard let detail = batch.samples.first(where: { $0.kind == .cpuPerCore })?.detail,
               let data = detail.data(using: .utf8),
-              var cores = try? JSONDecoder().decode([Double].self, from: data) else { return }
+              let cores = try? JSONDecoder().decode([Double].self, from: data) else { return }
 
         // 历史核数与当前不一致（内核拓扑变化罕见）时重置
         if coreHistory.count != cores.count {
