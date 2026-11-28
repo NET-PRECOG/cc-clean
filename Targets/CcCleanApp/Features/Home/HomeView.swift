@@ -77,6 +77,7 @@ struct HomeView: View {
             .task { await refreshDisk() }
         }
         .frame(minWidth: 900, minHeight: 620)
+        .glassContainerBackground()   // CleanUp 同款：窗口容器底清空（macOS 15+）
         // CleanUp 同款玻璃窗口：毛玻璃底 + 窗口透明 + 强制暗色（系统文字自动白系）
         .background(GlassWindowBackground())
         .modifier(GlassWindowSetup())

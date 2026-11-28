@@ -40,6 +40,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .navigationTitle("设置")
         .frame(width: 520)
+        .glassContainerBackground()   // CleanUp 同款：窗口容器底清空（macOS 15+）
         // CleanUp 同款玻璃窗口：隐藏 Form 系统底色，露出毛玻璃；窗口透明 + 强制暗色
         .scrollContentBackground(.hidden)
         .background(GlassWindowBackground())

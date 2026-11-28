@@ -194,7 +194,8 @@ struct StatusPanelView: View {
             }
             .frame(maxWidth: .infinity)
             panelButton("退出", "power") {
-                NSApp.terminate(nil)
+                // 真正退出软件（Dock/Cmd+Q 的退出被拦截为隐藏主窗口，面板常驻）
+                (NSApp.delegate as? AppDelegate)?.requestRealExit()
             }
         }
     }
