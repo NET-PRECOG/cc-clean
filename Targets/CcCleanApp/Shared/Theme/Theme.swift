@@ -86,7 +86,8 @@ struct AccentBadge: View {
     }
 }
 
-/// 功能列表行（首页普通列表模式：徽章 + 标题/描述 + 右侧箭头；hover 高亮）。
+/// 功能列表行（首页玻璃卡片模式：玻璃卡片底 + 徽章 + 标题/描述 + 右侧箭头；
+/// hover 特效：上浮 + 阴影加深 + 高光描边提亮 + 箭头右移，spring 回弹）。
 struct FeatureRowView: View {
     let title: String
     let subtitle: String
@@ -110,17 +111,34 @@ struct FeatureRowView: View {
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(hovering ? Color.secondary.opacity(1) : Color.secondary.opacity(0.4))
+                .offset(x: hovering ? 3 : 0)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(hovering ? Color.primary.opacity(0.06) : Color.clear)
+            // 卡片底与外层列表框/窗口框同款玻璃（NSVisualEffectView .sidebar withinWindow）
+            GlassPanelBackground()
+                .shadow(
+                    color: .black.opacity(hovering ? 0.16 : 0.06),
+                    radius: hovering ? 12 : 4,
+                    y: hovering ? 5 : 2)
+                .overlay(
+                    // hover 高光描边（顶部偏亮的渐变描边，随 hover 提亮）
+                    RoundedRectangle(cornerRadius: CCleanTheme.cardCornerRadius, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [.white.opacity(hovering ? 0.55 : 0.12),
+                                         .white.opacity(hovering ? 0.15 : 0.04)],
+                                startPoint: .top, endPoint: .bottom),
+                            lineWidth: 1)
+                )
         )
+        .scaleEffect(hovering ? 1.015 : 1)
+        .offset(y: hovering ? -2 : 0)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: hovering)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 /// 功能页统一页头：caption 小标题 + title2 加粗主值 + 尾部动作区（扫描时间/按钮等）。

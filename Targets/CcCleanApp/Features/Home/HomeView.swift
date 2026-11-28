@@ -38,8 +38,8 @@ struct HomeView: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 12)
 
-                    // 功能列表（普通列表模式，行间分隔线）
-                    VStack(spacing: 2) {
+                    // 功能列表（玻璃卡片直接排列；无外层包裹容器，主窗口自身即玻璃）
+                    VStack(spacing: 10) {
                         ForEach(cards, id: \.title) { card in
                             NavigationLink(value: card.title) {
                                 FeatureRowView(
@@ -49,7 +49,9 @@ struct HomeView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.horizontal, 24)
+                    // 列表与品牌 title 左缘对齐（距左 20）
+                    .padding(.leading, 20)
+                    .padding(.trailing, 24)
                     .padding(.top, 14)
                     .padding(.bottom, 24)
                 }
@@ -84,7 +86,7 @@ struct HomeView: View {
 
     // MARK: - 品牌行
 
-    /// 第一行品牌（清除背景色后直接置于列表顶部；leading 避开交通灯）。
+    /// 第一行品牌（清除背景色后直接置于列表顶部；距左 20）。
     private var brandRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("CcClean")
@@ -94,7 +96,7 @@ struct HomeView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, 76)
+        .padding(.leading, 20)
         .padding(.trailing, 24)
         .padding(.top, 10)
     }

@@ -27,6 +27,32 @@ struct GlassWindowBackground: NSViewRepresentable {
     }
 }
 
+/// 窗口内玻璃面板（与交通灯所在窗口底完全同款：同 .sidebar 材质 + behindWindow
+/// 模糊同一桌面，主内容玻璃与交通灯区域视觉一致；圆角由 layer 承载）。
+/// 用于首页功能卡片等「主内容玻璃表面」。
+struct GlassPanelBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .sidebar
+    var cornerRadius: CGFloat = CCleanTheme.cardCornerRadius
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.wantsLayer = true
+        view.layer?.cornerRadius = cornerRadius
+        view.layer?.masksToBounds = true
+        // 面板白描边（与窗口框一致的高光边界）
+        view.layer?.borderWidth = 1
+        view.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = material
+    }
+}
+
 /// 持续保证主/设置窗口透明 + 强制暗色外观：
 /// - onAppear 双次延迟设置（首次布局）
 /// - NSWindow.didBecomeKeyNotification 观察者（窗口关闭重开、设置窗口打开等场景）
